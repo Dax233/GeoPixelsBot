@@ -128,14 +128,14 @@ function getTileData(tileKey, bitmap) {
 }
 
 // helper to test one ghost‐pixel against the tile data
-function needsPlacing(pixel, tileKey, tileData) {
+function needsPlacing(pixel, tileKey, tileData, width, height) {
   const [tx, ty] = tileKey.split(",").map(Number);
   const lx = pixel.gridCoord.x - tx;
   const ly = pixel.gridCoord.y - ty;
-  if (lx < 0 || lx >= TILE_SIZE || ly < 0 || ly >= TILE_SIZE) {
+  if (lx < 0 || lx >= width || ly < 0 || ly >= height) {
     return true; // Should not happen if grouping is correct, but as a safeguard.
   }
-  const idx = (ly * TILE_SIZE + lx) * 4;
+  const idx = (ly * width + lx) * 4;
   return (
     tileData[idx] !== pixel.color.r ||
     tileData[idx + 1] !== pixel.color.g ||
@@ -211,15 +211,17 @@ function needsPlacing(pixel, tileKey, tileData) {
     );
   };
 
-  Array.prototype.orderGhostPixels = function () {
+  const orderGhostPixels = (pixels) => {
     const freqMap = new Map();
-    this.forEach((pixel) => {
+    pixels.forEach((pixel) => {
       const val = pixel.color.val();
       freqMap.set(val, (freqMap.get(val) || 0) + 1);
     });
-    return this.sort(
-      (a, b) => freqMap.get(a.color.val()) - freqMap.get(b.color.val())
-    );
+    return pixels.sort((a, b) => {
+      const aFreq = freqMap.get(a.color.val());
+      const bFreq = freqMap.get(b.color.val());
+      return aFreq - bFreq;
+    });
   };
 
   const setGhostPixelData = () => {
@@ -279,7 +281,7 @@ function needsPlacing(pixel, tileKey, tileData) {
       if (tile?.colorBitmap) {
         const tileData = getTileData(tileKey, tile.colorBitmap);
         for (const p of ghostPixels) {
-          if (needsPlacing(p, tileKey, tileData)) {
+          if (needsPlacing(p, tileKey, tileData, tile.colorBitmap.width, tile.colorBitmap.height)) {
             pixelsToPlace.push(p);
           }
         }
@@ -292,7 +294,7 @@ function needsPlacing(pixel, tileKey, tileData) {
       LOG_LEVELS.info,
       `Calculation complete. Found ${pixelsToPlace.length} pixels to place.`
     );
-    return pixelsToPlace.orderGhostPixels();
+    return orderGhostPixels(pixelsToPlace);
   };
 
   const sendPixels = withErrorHandling(async (pixels) => {
