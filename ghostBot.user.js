@@ -31,22 +31,21 @@ String.prototype.toFullHex = function () {
 };
 
 class Color {
-  constructor(arg = {}) {
-    if (typeof arg === "string") return this.constructorFromHex(arg);
-    this.r = arg.r;
-    this.g = arg.g;
-    this.b = arg.b;
-    this.a = arg.a ?? 255;
+  constructor(r, g, b, a = 255) {
+    this.r = r;
+    this.g = g;
+    this.b = b;
+    this.a = a;
+  }
+  static fromObject(obj) {
+    return new Color(obj.r, obj.g, obj.b, obj.a);
   }
 
-  constructorFromHex(hex) {
+  static fromHex(hex) {
     hex = hex.toFullHex();
     const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!r) throw new Error("Invalid hex color: " + hex);
-    this.r = r[1].hToI();
-    this.g = r[2].hToI();
-    this.b = r[3].hToI();
-    this.a = r[4].hToI();
+    return new Color(r[1].hToI(), r[2].hToI(), r[3].hToI(), r[4].hToI());
   }
   hex = () =>
     `#${this.r.iToH()}${this.g.iToH()}${this.b.iToH()}${this.a.iToH()}`;
@@ -78,7 +77,7 @@ class ImageData {
     this.data = imageData.map((d) => ({
       i: d.i,
       gridCoord: pixelToGridCoord(d.i, topLeft, size),
-      color: new Color(d),
+      color: Color.fromObject(d),
     }));
   }
 }
@@ -99,7 +98,10 @@ const FREE_COLORS = [
   "#C49A6C",
   "#000000",
   "#00000000",
-].map((c) => new Color(c));
+].map((c) => Color.fromHex(c));
+
+const freeColorSet = new Set(FREE_COLORS.map((c) => c.val()));
+
 function withErrorHandling(asyncFn) {
   return async function (...args) {
     try {
@@ -121,7 +123,7 @@ function getTileData(tileKey, bitmap) {
     offscreen.width = bitmap.width;
     offscreen.height = bitmap.height;
     offCtx.drawImage(bitmap, 0, 0);
-    const data = offCtx.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    const {data} = offCtx.getImageData(0, 0, bitmap.width, bitmap.height);
     tilePixelCache.set(tileKey, data);
   }
   return tilePixelCache.get(tileKey);
@@ -133,6 +135,10 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   const lx = pixel.gridCoord.x - tx;
   const ly = pixel.gridCoord.y - ty;
   if (lx < 0 || lx >= width || ly < 0 || ly >= height) {
+    // Log a warning because this indicates a potential logic error in grouping or coordinates.
+    console.warn(
+      `[ghostBot] Out-of-bounds pixel detected in needsPlacing: pixel.gridCoord=(${pixel.gridCoord.x},${pixel.gridCoord.y}), tileKey=${tileKey}, local=(${lx},${ly}), tile_size=(${width},${height})`
+    );
     return true; // Should not happen if grouping is correct, but as a safeguard.
   }
   const idx = (ly * width + lx) * 4;
@@ -149,9 +155,18 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   const usw = unsafeWindow;
   let ghostPixelData;
   let ignoredColors = new Set();
-  const GOOGLE_CLIENT_ID = document
-    .getElementById("g_id_onload")
-    ?.getAttribute("data-client_id");
+  const gIdOnloadElement = document.getElementById("g_id_onload");
+  let GOOGLE_CLIENT_ID;
+
+  if (gIdOnloadElement) {
+    GOOGLE_CLIENT_ID = gIdOnloadElement.getAttribute("data-client_id");
+  } else {
+    log(
+      LOG_LEVELS.warn,
+      'Could not find the Google Sign-In element ("g_id_onload"). Auto-relogin may fail if you get logged out.'
+    );
+    // GOOGLE_CLIENT_ID will remain undefined, and subsequent calls will handle it.
+  }
 
   const tryRelog = withErrorHandling(async () => {
     tokenUser = "";
@@ -226,8 +241,9 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
 
   const setGhostPixelData = () => {
     log(LOG_LEVELS.info, "Setting/Reloading ghost pixel data...");
-    const freeColorSet = new Set(FREE_COLORS.map((c) => c.val()));
-    const availableColorSet = new Set(Colors.map((c) => new Color(c).val()));
+    const availableColorSet = new Set(
+      Colors.map((c) => Color.fromHex(c).val())
+    );
     const imageData = getGhostImageData();
     if (!imageData) {
       ghostPixelData = [];
@@ -238,23 +254,36 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
       ghostPixelData = [];
       return;
     }
-    ghostPixelData = imageData.data.filter(
-      (d) =>
-        (usw.ghostBot.placeTransparentGhostPixels || d.color.a > 0) &&
-        (usw.ghostBot.placeFreeColors || !freeColorSet.has(d.color.val())) &&
-        availableColorSet.has(d.color.val()) &&
-        !ignoredColors.has(d.color.val())
-    );
+    ghostPixelData = imageData.data
+      .filter(
+        (d) =>
+          (usw.ghostBot.placeTransparentGhostPixels || d.color.a > 0) &&
+          (usw.ghostBot.placeFreeColors || !freeColorSet.has(d.color.val())) &&
+          availableColorSet.has(d.color.val()) &&
+          !ignoredColors.has(d.color.val())
+      )
+      .map((p) => {
+        const tileX = Math.floor(p.gridCoord.x / TILE_SIZE) * TILE_SIZE;
+        const tileY = Math.floor(p.gridCoord.y / TILE_SIZE) * TILE_SIZE;
+        return {
+          ...p,
+          tileX,
+          tileY,
+          tileKey: `${tileX},${tileY}`,
+        };
+      });
     log(
       LOG_LEVELS.info,
       `Filtered ghost pixels. Total valid pixels to track: ${ghostPixelData.length}`
     );
   };
 
-  const getPixelsToPlace = async () => {
+  const getPixelsToPlace = () => {
     if (!ghostPixelData) setGhostPixelData();
-    log(LOG_LEVELS.debug, "Filtering pixels... Grouping by tile.");
-    tilePixelCache.clear(); // Clear the raw pixel data cache for each run.
+    log(LOG_LEVELS.debug, "Filtering pixels with pre-computed tile data...");
+
+    // IMPORTANT: We no longer clear the tilePixelCache here, to keep it "warm".
+
     if (
       typeof tileImageCache === "undefined" ||
       !(tileImageCache instanceof Map)
@@ -263,33 +292,29 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
       return [];
     }
 
-    const pixelsByTile = new Map();
-    for (const pixel of ghostPixelData) {
-      const tileX = Math.floor(pixel.gridCoord.x / TILE_SIZE) * TILE_SIZE;
-      const tileY = Math.floor(pixel.gridCoord.y / TILE_SIZE) * TILE_SIZE;
-      const tileKey = `${tileX},${tileY}`;
-      if (!pixelsByTile.has(tileKey)) {
-        pixelsByTile.set(tileKey, []);
-      }
-      pixelsByTile.get(tileKey).push(pixel);
-    }
-
     const pixelsToPlace = [];
-    // The main loop is now much cleaner.
-    for (const [tileKey, ghostPixels] of pixelsByTile.entries()) {
-      const tile = tileImageCache.get(tileKey);
+
+    for (const p of ghostPixelData) {
+      const tile = tileImageCache.get(p.tileKey);
       if (tile?.colorBitmap) {
-        const tileData = getTileData(tileKey, tile.colorBitmap);
-        for (const p of ghostPixels) {
-          if (needsPlacing(p, tileKey, tileData, tile.colorBitmap.width, tile.colorBitmap.height)) {
-            pixelsToPlace.push(p);
-          }
+        const tileData = getTileData(p.tileKey, tile.colorBitmap);
+        if (
+          needsPlacing(
+            p,
+            p.tileKey,
+            tileData,
+            tile.colorBitmap.width,
+            tile.colorBitmap.height
+          )
+        ) {
+          pixelsToPlace.push(p);
         }
       } else {
-        // If the tile doesn't exist in the cache, all its pixels need placing.
-        pixelsToPlace.push(...ghostPixels);
+        // If the tile isn't in the cache, it definitely needs placing.
+        pixelsToPlace.push(p);
       }
     }
+
     log(
       LOG_LEVELS.info,
       `Calculation complete. Found ${pixelsToPlace.length} pixels to place.`
@@ -328,24 +353,21 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
       isPageVisible = true;
       log(LOG_LEVELS.info, "Synchronizing with the server...");
       await synchronize("full");
-      const waitTimeForWorker = 2000;
-      log(
-        LOG_LEVELS.debug,
-        `Waiting ${waitTimeForWorker / 1000}s for cache to update...`
-      );
-      await new Promise((r) => setTimeout(r, waitTimeForWorker));
 
-      const pixelsToPlace = await getPixelsToPlace();
+      const pixelsToPlace = getPixelsToPlace();
       const totalPixelsInTemplate = ghostPixelData.length;
+
       if (pixelsToPlace.length === 0) {
         log(LOG_LEVELS.info, `All pixels are correctly placed.`);
         break;
       }
 
       const pixelsThisRequest = pixelsToPlace.slice(0, currentEnergy);
+      const pixelsAfterThisRequest =
+        totalPixelsInTemplate - pixelsToPlace.length + pixelsThisRequest.length;
       log(
         LOG_LEVELS.info,
-        `Placing ${pixelsThisRequest.length}/${pixelsToPlace.length} pixels...`
+        `Placing ${pixelsThisRequest.length} pixels (${pixelsAfterThisRequest}/${totalPixelsInTemplate})...`
       );
       await sendPixels(
         pixelsThisRequest.map((d) => ({
@@ -358,17 +380,19 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
         log(LOG_LEVELS.warn, "logged out => stopping the bot");
         break;
       }
-      if (pixelsToPlace.length === pixelsThisRequest.length) {
-        log(LOG_LEVELS.info, "All pixels are correctly placed.");
+      const remainingAfterSend = getPixelsToPlace();
+      if (remainingAfterSend.length === 0) {
+        log(LOG_LEVELS.info, `All pixels are now correctly placed.`);
         break;
       }
 
       /* isPageVisible = !document.hidden; */
-      const energyToRegen =
-        Math.min(maxEnergy, pixelsToPlace.length) -
-        currentEnergy +
-        pixelsThisRequest.length;
-      const waitTime = Math.max(0, energyToRegen) * energyRate * 1000;
+      // Calculate the energy needed for the NEXT batch of pixels.
+      const targetEnergy = Math.min(maxEnergy, remainingAfterSend.length);
+      const energyNeeded = targetEnergy - currentEnergy;
+
+      // We only wait if we need more energy than we currently have.
+      const waitTime = Math.max(0, energyNeeded) * energyRate * 1000;
       log(
         LOG_LEVELS.info,
         `Waiting for energy regeneration... (${(waitTime / 1000).toFixed(
@@ -388,7 +412,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     placeFreeColors: true,
     ignoreColors: withErrorHandling((input, sep = ",") => {
       const colorList = Array.isArray(input) ? input : input.split(sep);
-      ignoredColors = new Set(colorList.map((c) => new Color(c).val()));
+      ignoredColors = new Set(colorList.map((c) => Color.fromHex(c).val()));
       log(LOG_LEVELS.info, "New ignored colors :", ignoredColors);
       setGhostPixelData();
     }),
