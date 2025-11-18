@@ -1,14 +1,14 @@
 // ==UserScript==
-// @name         GhostPixel Bot
-// @namespace    https://github.com/nymtuta
+// @name         GhostPixel Bot (Dax233's Fork)
+// @namespace    https://github.com/Dax233
 // @version      0.3.3
 // @description  A bot to place pixels from the ghost image on https://geopixels.net
-// @author       nymtuta & Dax233
+// @author       Dax233 (Original by nymtuta)
 // @match        https://*.geopixels.net/*
-// @updateURL    https://github.com/nymtuta/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js
-// @downloadURL  https://github.com/nymtuta/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js
-// @homepage     https://github.com/nymtuta/GeoPixelsBot
-// @icon         https://raw.githubusercontent.com/nymtuta/GeoPixelsBot/refs/heads/main/img/icon.png
+// @updateURL    https://github.com/Dax233/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js
+// @downloadURL  https://github.com/Dax233/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js
+// @homepage     https://github.com/Dax233/GeoPixelsBot
+// @icon         https://raw.githubusercontent.com/Dax233/GeoPixelsBot/refs/heads/main/img/icon.png
 // @license      GPL-3.0
 // @grant        unsafeWindow
 // ==/UserScript==
@@ -41,7 +41,7 @@ class Color {
 
   constructorFromHex(hex) {
     hex = hex.toFullHex();
-    var r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
     if (!r) throw new Error("Invalid hex color: " + hex);
     this.r = r[1].hToI();
     this.g = r[2].hToI();
@@ -110,6 +110,39 @@ function withErrorHandling(asyncFn) {
     }
   };
 }
+const TILE_SIZE = 1000;
+const offscreen = document.createElement("canvas");
+const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
+const tilePixelCache = new Map(); // key: "x,y", value: Uint8ClampedArray
+
+// helper to load or reuse pixel data
+function getTileData(tileKey, bitmap) {
+  if (!tilePixelCache.has(tileKey)) {
+    offscreen.width = bitmap.width;
+    offscreen.height = bitmap.height;
+    offCtx.drawImage(bitmap, 0, 0);
+    const data = offCtx.getImageData(0, 0, bitmap.width, bitmap.height).data;
+    tilePixelCache.set(tileKey, data);
+  }
+  return tilePixelCache.get(tileKey);
+}
+
+// helper to test one ghost‐pixel against the tile data
+function needsPlacing(pixel, tileKey, tileData) {
+  const [tx, ty] = tileKey.split(",").map(Number);
+  const lx = pixel.gridCoord.x - tx;
+  const ly = pixel.gridCoord.y - ty;
+  if (lx < 0 || lx >= TILE_SIZE || ly < 0 || ly >= TILE_SIZE) {
+    return true; // Should not happen if grouping is correct, but as a safeguard.
+  }
+  const idx = (ly * TILE_SIZE + lx) * 4;
+  return (
+    tileData[idx] !== pixel.color.r ||
+    tileData[idx + 1] !== pixel.color.g ||
+    tileData[idx + 2] !== pixel.color.b ||
+    tileData[idx + 3] !== pixel.color.a
+  );
+}
 //#endregion
 
 (function () {
@@ -120,9 +153,7 @@ function withErrorHandling(asyncFn) {
     .getElementById("g_id_onload")
     ?.getAttribute("data-client_id");
 
-  const TILE_SIZE = 1000;
-
-  async function tryRelog() {
+  const tryRelog = withErrorHandling(async () => {
     tokenUser = "";
 
     log(LOG_LEVELS.info, "attempting AutoLogin");
@@ -156,10 +187,9 @@ function withErrorHandling(asyncFn) {
 
     log(LOG_LEVELS.info, `Relog ${tokenUser.length ? "successful" : "failed"}`);
     return !!tokenUser.length;
-  }
-  tryRelog = withErrorHandling(tryRelog);
+  });
 
-  function getGhostImageData() {
+  const getGhostImageData = () => {
     if (!ghostImage || !ghostImageOriginalData || !ghostImageTopLeft) {
       log(LOG_LEVELS.warn, "Ghost image not ready.");
       return null;
@@ -179,7 +209,7 @@ function withErrorHandling(asyncFn) {
       { x: ghostImageTopLeft.gridX, y: ghostImageTopLeft.gridY },
       ghostImage
     );
-  }
+  };
 
   Array.prototype.orderGhostPixels = function () {
     const freqMap = new Map();
@@ -192,8 +222,10 @@ function withErrorHandling(asyncFn) {
     );
   };
 
-  function setGhostPixelData() {
+  const setGhostPixelData = () => {
     log(LOG_LEVELS.info, "Setting/Reloading ghost pixel data...");
+    const freeColorSet = new Set(FREE_COLORS.map((c) => c.val()));
+    const availableColorSet = new Set(Colors.map((c) => new Color(c).val()));
     const imageData = getGhostImageData();
     if (!imageData) {
       ghostPixelData = [];
@@ -207,20 +239,20 @@ function withErrorHandling(asyncFn) {
     ghostPixelData = imageData.data.filter(
       (d) =>
         (usw.ghostBot.placeTransparentGhostPixels || d.color.a > 0) &&
-        (usw.ghostBot.placeFreeColors ||
-          !FREE_COLORS.map((c) => c.val()).includes(d.color.val())) &&
-        Colors.map((c) => new Color(c).val()).includes(d.color.val()) &&
+        (usw.ghostBot.placeFreeColors || !freeColorSet.has(d.color.val())) &&
+        availableColorSet.has(d.color.val()) &&
         !ignoredColors.has(d.color.val())
     );
     log(
       LOG_LEVELS.info,
       `Filtered ghost pixels. Total valid pixels to track: ${ghostPixelData.length}`
     );
-  }
+  };
 
-  async function getPixelsToPlace() {
+  const getPixelsToPlace = async () => {
     if (!ghostPixelData) setGhostPixelData();
     log(LOG_LEVELS.debug, "Filtering pixels... Grouping by tile.");
+    tilePixelCache.clear(); // Clear the raw pixel data cache for each run.
     if (
       typeof tileImageCache === "undefined" ||
       !(tileImageCache instanceof Map)
@@ -241,72 +273,29 @@ function withErrorHandling(asyncFn) {
     }
 
     const pixelsToPlace = [];
-    const offscreenCanvas = document.createElement("canvas");
-    const offscreenCtx = offscreenCanvas.getContext("2d", {
-      willReadFrequently: true,
-    });
-    let tileCount = 0;
-
-    for (const [tileKey, pixelsInTile] of pixelsByTile.entries()) {
-      tileCount++;
-      log(
-        LOG_LEVELS.debug,
-        `Processing tile ${tileCount}/${pixelsByTile.size} ('${tileKey}')...`
-      );
+    // The main loop is now much cleaner.
+    for (const [tileKey, ghostPixels] of pixelsByTile.entries()) {
       const tile = tileImageCache.get(tileKey);
-
-      const [tileX, tileY] = tileKey.split(",").map(Number);
-
-      if (tile && tile.colorBitmap) {
-        const bitmap = tile.colorBitmap;
-        offscreenCanvas.width = bitmap.width;
-        offscreenCanvas.height = bitmap.height;
-        offscreenCtx.drawImage(bitmap, 0, 0);
-        await new Promise((resolve) => requestAnimationFrame(resolve));
-        const tilePixelData = offscreenCtx.getImageData(
-          0,
-          0,
-          bitmap.width,
-          bitmap.height
-        ).data;
-
-        for (const pixel of pixelsInTile) {
-          const localX = pixel.gridCoord.x - tileX;
-          const localY = pixel.gridCoord.y - tileY;
-
-          if (
-            localX >= 0 &&
-            localX < TILE_SIZE &&
-            localY >= 0 &&
-            localY < TILE_SIZE
-          ) {
-            const index = (localY * TILE_SIZE + localX) * 4;
-            const placedColor = new Color({
-              r: tilePixelData[index],
-              g: tilePixelData[index + 1],
-              b: tilePixelData[index + 2],
-              a: tilePixelData[index + 3],
-            });
-            if (placedColor.val() !== pixel.color.val()) {
-              pixelsToPlace.push(pixel);
-            }
-          } else {
-            pixelsToPlace.push(pixel);
+      if (tile?.colorBitmap) {
+        const tileData = getTileData(tileKey, tile.colorBitmap);
+        for (const p of ghostPixels) {
+          if (needsPlacing(p, tileKey, tileData)) {
+            pixelsToPlace.push(p);
           }
         }
       } else {
-        pixelsToPlace.push(...pixelsInTile);
+        // If the tile doesn't exist in the cache, all its pixels need placing.
+        pixelsToPlace.push(...ghostPixels);
       }
     }
-
     log(
       LOG_LEVELS.info,
       `Calculation complete. Found ${pixelsToPlace.length} pixels to place.`
     );
     return pixelsToPlace.orderGhostPixels();
-  }
+  };
 
-  async function sendPixels(pixels) {
+  const sendPixels = withErrorHandling(async (pixels) => {
     const r = await fetch("https://geopixels.net/PlacePixel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -321,13 +310,12 @@ function withErrorHandling(asyncFn) {
       log(LOG_LEVELS.warn, "Failed to place pixels: " + (await r.text()));
       if (r.status == 401 && (await tryRelog())) await sendPixels(pixels);
     } else log(LOG_LEVELS.info, `Placed ${pixels.length} pixels!`);
-  }
-  sendPixels = withErrorHandling(sendPixels);
+  });
 
   let stopWhileLoop = false;
   let promiseResolve;
 
-  async function startGhostBot() {
+  const startGhostBot = withErrorHandling(async () => {
     if (!ghostImage || !ghostImageOriginalData || !ghostImageTopLeft) {
       log(LOG_LEVELS.warn, "Ghost image not loaded.");
       return;
@@ -391,15 +379,14 @@ function withErrorHandling(asyncFn) {
         setTimeout(resolve, waitTime);
       });
     }
-  }
-  startGhostBot = withErrorHandling(startGhostBot);
+  });
 
   usw.ghostBot = {
     placeTransparentGhostPixels: false,
     placeFreeColors: true,
     ignoreColors: withErrorHandling((input, sep = ",") => {
-      if (!Array.isArray(input)) input = input.split(sep);
-      ignoredColors = new Set(input.map((c) => new Color(c).val()));
+      const colorList = Array.isArray(input) ? input : input.split(sep);
+      ignoredColors = new Set(colorList.map((c) => new Color(c).val()));
       log(LOG_LEVELS.info, "New ignored colors :", ignoredColors);
       setGhostPixelData();
     }),
