@@ -775,7 +775,7 @@ const GUI_HTML = `
   };
 
   // 初始化 GUI
-  function ensureSingleGUI() {
+  const ensureSingleGUI = () => {
     createGUI();
   }
 
