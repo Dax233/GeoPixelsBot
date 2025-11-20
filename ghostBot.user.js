@@ -154,7 +154,9 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
 }
 
 // Refactored Logic Helper
-function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy, rate = 10}) {
+// Modified: Removed 'rate' and 'waitSeconds' calculation.
+// Now purely determines the target and if action is needed immediately.
+function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy}) {
   let target = 0;
   if (mode === 'maintain') {
       target = 1;
@@ -165,18 +167,11 @@ function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy, 
       if (pixelCount > 0) target = Math.max(1, target);
   }
 
-  const needed = target - currentEnergy;
-  
-  // Optimization: Return 0 wait if no wait is needed (enough energy)
-  const waitSeconds = needed <= 0 ? 0 : needed * rate;
-
-  // Fix: Ensure pixelCount > 0 is checked for all conditions
-  // This prevents the bot from acting if there are no pixels, even if energy conditions are met
-  const shouldAct = (needed <= 0 || currentEnergy >= pixelCount) && pixelCount > 0;
+  // Should act immediately if we have enough energy AND there are pixels to place
+  const shouldAct = currentEnergy >= target && pixelCount > 0;
 
   return {
     shouldAct,
-    waitSeconds,
     target
   };
 }
@@ -628,26 +623,39 @@ const GUI_HTML = `
     }
   });
 
-  // 带 GUI 进度更新的等待函数
-  const waitWithCountdown = async (seconds, targetEnergy) => {
-    let remaining = Math.ceil(seconds);
-    while (remaining > 0) {
-        // 检查停止标志 (stopWhileLoop) 或者 isRunning 状态
-        // 如果用户想后台运行，我们不检查 document.visibilityState，这确保了后台挂机的能力
-        if (stopWhileLoop || !isRunning) break; 
-        
-        // 尝试从 unsafeWindow 更新 energy (解决审阅意见)
-        // 如果无法从 unsafeWindow 获取，则回退到全局变量 currentEnergy
-        let displayEnergy = currentEnergy;
-        if (typeof usw.currentEnergy !== "undefined") {
-            displayEnergy = usw.currentEnergy;
+  // Helper to get real-time energy safely
+  const getCurrentEnergy = () => {
+      let energy = 0;
+      // Try getting from unsafeWindow (game state) first
+      if (typeof usw.currentEnergy !== "undefined") {
+          energy = usw.currentEnergy;
+      } else if (typeof currentEnergy !== "undefined") {
+          // Fallback to global scope if accessible
+          energy = currentEnergy;
+      }
+      return energy;
+  }
+
+  // NEW: Polling-based wait function
+  // Instead of predicting time, this loops and checks the actual energy value.
+  const waitForEnergy = async (targetEnergy) => {
+    while (true) {
+        if (stopWhileLoop || !isRunning) return; 
+
+        const current = getCurrentEnergy();
+
+        if (current >= targetEnergy) {
+            return; // Energy reached!
         }
 
-        const energyStatus = `(${displayEnergy}/${targetEnergy})`;
-        updateGuiStatus(`充能中... ${energyStatus} - ${remaining}s`, "#1982c4", "⏳");
+        // Update UI
+        const energyStatus = `(${current}/${targetEnergy})`;
+        updateGuiStatus(`充能中... ${energyStatus}`, "#1982c4", "⏳");
         
+        // Wait 1 second before checking again.
+        // Even though the user suggested 1 minute, checking every 1s is very cheap
+        // and ensures the bot reacts immediately if energy is gained via bonus/manual actions.
         await new Promise(r => setTimeout(r, 1000));
-        remaining--;
     }
   };
 
@@ -700,19 +708,20 @@ const GUI_HTML = `
         }
       }
       
-      // Use Refactored helper
-      const {shouldAct, waitSeconds, target} = evaluateAction({
+      // Determine Target
+      const {shouldAct, target} = evaluateAction({
         mode: botConfig.mode,
-        currentEnergy,
+        currentEnergy: getCurrentEnergy(),
         pixelCount: pixelsToPlace.length,
         threshold: botConfig.energyThreshold,
         maxEnergy,
-        rate: typeof energyRate !== 'undefined' ? energyRate : 10
+        // rate is no longer needed
       });
 
       if (shouldAct) {
         // 决定这次发多少
-        const countToSend = Math.min(currentEnergy, pixelsToPlace.length);
+        const current = getCurrentEnergy();
+        const countToSend = Math.min(current, pixelsToPlace.length);
         const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
 
         updateGuiStatus(`正在绘制 ${pixelsThisRequest.length} 个点...`, "#A8D0DC", "🖌️");
@@ -745,7 +754,8 @@ const GUI_HTML = `
         }
       }
 
-      await waitWithCountdown(waitSeconds, target);
+      // Wait until energy is sufficient
+      await waitForEnergy(target);
     }
     
     // 循环结束（手动停止）
