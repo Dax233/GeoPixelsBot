@@ -173,7 +173,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   };
 
   // 创建 GUI
-  function createGUI() {
+  const createGUI = () => {
     const panel = document.createElement("div");
     panel.id = "ghost-bot-panel";
     panel.style.cssText = `
@@ -341,7 +341,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   }
 
   // 更新 GUI 状态文字
-  function updateGuiStatus(status, color = "white", icon = "ℹ️") {
+  const updateGuiStatus = (status, color = "white", icon = "ℹ️") => {
     const el = document.getElementById("ghost-status-line");
     if (el) {
       el.innerHTML = `<span>${icon}</span> <span style="color:${color}">${status}</span>`;
