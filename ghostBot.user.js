@@ -298,7 +298,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     };
     
     document.getElementById("energy-threshold-input").onchange = (e) => {
-      let val = parseInt(e.target.value);
+      let val = parseInt(e.target.value, 10);
       if (val < 1) val = 1;
       botConfig.energyThreshold = val;
       log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
