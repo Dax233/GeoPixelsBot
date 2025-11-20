@@ -166,7 +166,16 @@ function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy})
   }
 
   // Safe check for undefined energy
-  const safeEnergy = (typeof currentEnergy === 'number' && !isNaN(currentEnergy)) ? currentEnergy : 0;
+  let safeEnergy;
+  if (typeof currentEnergy === 'number' && !isNaN(currentEnergy)) {
+    safeEnergy = currentEnergy;
+  } else {
+    safeEnergy = 0;
+    // Log or monitor fallback to 0 for energy
+    console.warn('[ghostBot] Fallback: currentEnergy is undefined or NaN. Defaulting to 0.', { currentEnergy });
+    // Optionally, send to monitoring endpoint here if available
+    // sendMonitoringEvent('energy_fallback', { value: currentEnergy });
+  }
 
   // Should act immediately if we have enough energy AND there are pixels to place
   const shouldAct = safeEnergy >= target && pixelCount > 0;
