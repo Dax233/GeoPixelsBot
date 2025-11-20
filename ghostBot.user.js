@@ -647,7 +647,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
 
       
       let targetEnergyVal = 0;
-      
+
       if (botConfig.mode === 'maintain') {
           targetEnergyVal = 1;
       } else {
@@ -656,6 +656,9 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
            if (remainingPixels > 0 && remainingPixels < targetEnergyVal) {
                targetEnergyVal = remainingPixels;
            }
+      }
+      // Ensure targetEnergyVal is always at least 1
+      targetEnergyVal = Math.max(1, targetEnergyVal);
       }
 
       let waitSeconds = 0;
