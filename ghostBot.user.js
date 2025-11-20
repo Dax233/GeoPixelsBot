@@ -454,10 +454,19 @@ const GUI_HTML = `
       }
 
       if (minBtn) {
+          // SVG icons for minimize and restore
+          const minimizeIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="12" width="10" height="2" fill="currentColor"/></svg>`;
+          const restoreIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="4" width="10" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="6" width="6" height="4" fill="currentColor"/></svg>`;
+
+          // Initial icon and tooltip
+          minBtn.innerHTML = minimizeIcon;
+          minBtn.title = "Minimize";
+
           minBtn.addEventListener('click', () => {
               panelEl.classList.toggle('gb-minimized');
               const isMin = panelEl.classList.contains('gb-minimized');
-              minBtn.innerText = isMin ? '□' : '_';
+              minBtn.innerHTML = isMin ? restoreIcon : minimizeIcon;
+              minBtn.title = isMin ? "Restore" : "Minimize";
           });
       }
   }
