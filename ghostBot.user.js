@@ -153,68 +153,28 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   );
 }
 
-// DOM Helper
-function el(tag, options = {}, children = []) {
-  const e = document.createElement(tag);
-  // Handle special keys like 'style' (object) separately if needed, 
-  // but standard assignment works for most props including className.
-  Object.keys(options).forEach(key => {
-      if (key === 'style' && typeof options[key] === 'object') {
-          Object.assign(e.style, options[key]);
-      } else if (key.startsWith('on') && typeof options[key] === 'function') {
-          e.addEventListener(key.substring(2).toLowerCase(), options[key]);
-      } else {
-          e[key] = options[key];
-      }
-  });
-  children.forEach(c => {
-      if (typeof c === 'string') e.appendChild(document.createTextNode(c));
-      else e.appendChild(c);
-  });
-  return e;
-}
-
-// Logic Helpers
-function shouldBotAct(mode, currentEnergy, pixelsCount, threshold, maxEnergy) {
+// Refactored Logic Helper
+function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy, rate = 10}) {
+  let target = 0;
   if (mode === 'maintain') {
-      return currentEnergy > 0 && pixelsCount > 0;
-  }
-  
-  const userThreshold = Math.min(threshold, maxEnergy);
-  
-  if (pixelsCount >= userThreshold) {
-      return currentEnergy >= userThreshold;
+      target = 1;
   } else {
-      // 剩余像素少于阈值，有多少发多少
-      return currentEnergy >= pixelsCount || currentEnergy === maxEnergy;
-  }
-}
-
-function calculateWaitTime(mode, currentEnergy, pixelsCount, threshold, maxEnergy, rate) {
-  let targetEnergyVal = 0;
-
-  if (mode === 'maintain') {
-      targetEnergyVal = 1;
-  } else {
-       // 粗略估计剩余需要的能量
-       const remainingPixels = Math.max(0, pixelsCount - currentEnergy); 
-       let t = Math.min(maxEnergy, threshold);
-       
-       // 如果剩下的像素非常少（小于阈值），我们只需要攒到正好能画完的能量即可
-       if (remainingPixels > 0 && remainingPixels < t) {
-           t = remainingPixels;
-       }
-       targetEnergyVal = Math.max(1, t);
+      const effectiveThreshold = Math.min(maxEnergy, threshold);
+      target = pixelCount >= effectiveThreshold ? effectiveThreshold : pixelCount;
+      // Ensure at least 1 if there are pixels to place
+      if (pixelCount > 0) target = Math.max(1, target);
   }
 
-  // Optimization: Return 0 if no wait is needed (enough energy)
-  if (currentEnergy >= targetEnergyVal) {
-      return 0;
-  }
+  const needed = target - currentEnergy;
+  
+  // Optimization: Return 0 wait if no wait is needed (enough energy)
+  const waitSeconds = needed <= 0 ? 0 : needed * rate;
 
-  // rate default to 10s if undefined
-  const r = (typeof rate !== 'undefined' ? rate : 10);
-  return (targetEnergyVal - currentEnergy) * r;
+  return {
+    shouldAct: needed <= 0 || (currentEnergy >= pixelCount && pixelCount > 0),
+    waitSeconds,
+    target
+  };
 }
 
 // Styles
@@ -310,113 +270,11 @@ const GUI_STYLES = `
     autoRestart: true,
   };
 
-  // 创建 GUI 组件函数
-  const buildHeader = () => {
-      return el('div', { className: 'gb-header' }, [
-          el('h3', { className: 'gb-title' }, [
-              '👻 GhostPixel Bot ',
-              el('span', { className: 'gb-ver', innerText: 'v0.4' })
-          ]),
-          el('span', { 
-              className: 'gb-close', 
-              innerText: '✕',
-              onclick: (e) => e.target.closest('#ghost-bot-panel').remove() 
-          })
-      ]);
-  };
-
-  const buildControls = () => {
-      const modeSelect = el('select', { id: 'bot-mode-select', className: 'gb-input' }, [
-          el('option', { value: 'build', innerText: '🔨 建造模式' }),
-          el('option', { value: 'maintain', innerText: '🛡️ 维护模式' })
-      ]);
-
-      const energyInput = el('input', { 
-          id: 'energy-threshold-input', 
-          type: 'number', 
-          className: 'gb-input',
-          value: botConfig.energyThreshold, 
-          min: 1, max: 200 
-      });
-
-      return el('div', { className: 'gb-controls' }, [
-          el('div', { className: 'gb-ctrl-group', style: { flex: 1 } }, [
-              el('label', { className: 'gb-label', innerText: '运行模式:' }),
-              modeSelect
-          ]),
-          el('div', { className: 'gb-ctrl-group', style: { flex: 0.6 } }, [
-              el('label', { className: 'gb-label', innerText: '充能阈值:' }),
-              energyInput
-          ])
-      ]);
-  };
-
-  const buildStats = () => {
-      return el('div', { className: 'gb-stats' }, [
-          // Progress
-          el('div', { className: 'gb-row-between gb-progress-meta' }, [
-              el('span', { style: { color: '#bbb' }, innerText: '进度' }),
-              el('span', { id: 'stats-progress-text', style: { color: '#1982c4', fontWeight: 'bold' }, innerText: '0%' })
-          ]),
-          el('div', { className: 'gb-progress-track' }, [
-              el('div', { id: 'stats-progress-bar' })
-          ]),
-          // Pixels
-          el('div', { className: 'gb-row-between gb-stat-item' }, [
-              el('span', { style: { color: '#bbb' }, innerText: '🖌️ 像素完成度' }),
-              el('span', { id: 'stats-pixel-count', className: 'gb-stat-val', innerText: '- / -' })
-          ]),
-          // Maintain Stats
-          el('div', { id: 'maintain-stats' }, [
-              el('div', { className: 'gb-row-between gb-stat-item' }, [
-                  el('span', { style: { color: '#8ac926' }, innerText: '🛡️ 已修复总数' }),
-                  el('span', { id: 'fix-count-display', className: 'gb-stat-val', style: { color: '#8ac926', fontWeight: 'bold' }, innerText: '0' })
-              ])
-          ])
-      ]);
-  };
-
-  const buildButtons = () => {
-      return el('div', { className: 'gb-actions' }, [
-          el('button', { id: 'btn-start', className: 'gb-btn gb-btn-start', innerText: '启动' }),
-          el('button', { id: 'btn-stop', className: 'gb-btn gb-btn-stop', innerText: '停止', disabled: true })
-      ]);
-  };
-
-  const bindGUIEvents = (panel) => {
-      const btnStart = panel.querySelector("#btn-start");
-      const btnStop = panel.querySelector("#btn-stop");
-      const modeSelect = panel.querySelector("#bot-mode-select");
-      const energyInput = panel.querySelector("#energy-threshold-input");
-      const fixStats = panel.querySelector("#maintain-stats");
-
-      btnStart.onclick = () => { if (usw.ghostBot) usw.ghostBot.start(); };
-      btnStop.onclick = () => { if (usw.ghostBot) usw.ghostBot.stop(); };
-
-      energyInput.onchange = (e) => {
-          let val = parseInt(e.target.value, 10);
-          if (val < 1) val = 1;
-          botConfig.energyThreshold = val;
-          log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
-      };
-
-      modeSelect.onchange = (e) => {
-          botConfig.mode = e.target.value;
-          if (botConfig.mode === 'maintain') {
-              fixStats.style.display = 'block';
-          } else {
-              fixStats.style.display = 'none';
-          }
-          log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
-      };
-  };
-
-  // Notification Helper
+  // Notification Helper (DOM Helper)
   const showCompletionNotification = (message) => {
-      const notification = el('div', {
-          className: 'gb-notification',
-          innerText: message
-      });
+      const notification = document.createElement('div');
+      notification.className = 'gb-notification';
+      notification.innerText = message;
       document.body.appendChild(notification);
 
       // Remove after 4 seconds
@@ -427,52 +285,109 @@ const GUI_STYLES = `
       }, 4000);
   };
 
-  // 创建 GUI
+  // 创建 GUI - 重构为模板字符串 + 事件委托
   const createGUI = () => {
-    // Inject CSS
-    const styleTag = document.createElement('style');
-    styleTag.textContent = GUI_STYLES;
-    document.head.appendChild(styleTag);
+    const panelHTML = `
+      <style>${GUI_STYLES}</style>
+      <div id="ghost-bot-panel">
+        <div class="gb-header">
+          <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4</span></h3>
+          <span class="gb-close">✕</span>
+        </div>
+        <div id="ghost-status-line">
+          <span id="gb-status-icon">🔴</span>
+          <span id="gb-status-text"> 状态: 已停止</span>
+        </div>
+        <div class="gb-controls">
+          <div class="gb-ctrl-group" style="flex:1">
+            <label class="gb-label">运行模式:</label>
+            <select id="bot-mode-select" class="gb-input">
+              <option value="build">🔨 建造模式</option>
+              <option value="maintain">🛡️ 维护模式</option>
+            </select>
+          </div>
+          <div class="gb-ctrl-group" style="flex:0.6">
+            <label class="gb-label">充能阈值:</label>
+            <input id="energy-threshold-input" type="number" class="gb-input" min="1" max="200" value="${botConfig.energyThreshold}">
+          </div>
+        </div>
+        <div class="gb-stats">
+          <div class="gb-row-between gb-progress-meta">
+            <span style="color:#bbb">进度</span>
+            <span id="stats-progress-text" style="color:#1982c4; font-weight:bold">0%</span>
+          </div>
+          <div class="gb-progress-track">
+            <div id="stats-progress-bar"></div>
+          </div>
+          <div class="gb-row-between gb-stat-item">
+            <span style="color:#bbb">🖌️ 像素完成度</span>
+            <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
+          </div>
+          <div id="maintain-stats">
+            <div class="gb-row-between gb-stat-item">
+              <span style="color:#8ac926">🛡️ 已修复总数</span>
+              <span id="fix-count-display" class="gb-stat-val" style="color:#8ac926; font-weight:bold">0</span>
+            </div>
+          </div>
+        </div>
+        <div class="gb-actions">
+          <button id="btn-start" class="gb-btn gb-btn-start">启动</button>
+          <button id="btn-stop" class="gb-btn gb-btn-stop" disabled>停止</button>
+        </div>
+      </div>
+    `;
 
-    // Build Panel
-    const panel = el('div', { id: 'ghost-bot-panel' }, [
-        buildHeader(),
-        // 修改状态栏结构，增加 ID
-        el('div', { id: 'ghost-status-line' }, [
-            el('span', { id: 'gb-status-icon', innerText: '🔴' }),
-            el('span', { id: 'gb-status-text', innerText: ' 状态: 已停止' })
-        ]),
-        buildControls(),
-        buildStats(),
-        buildButtons()
-    ]);
-
-    document.body.appendChild(panel);
-    bindGUIEvents(panel);
-
-    // 元素引用 (用于更新 UI 辅助函数)
-    const btnStart = panel.querySelector("#btn-start");
-    const btnStop = panel.querySelector("#btn-stop");
-    const modeSelect = panel.querySelector("#bot-mode-select");
+    const wrapper = document.createElement('div');
+    wrapper.innerHTML = panelHTML;
+    document.body.appendChild(wrapper.firstElementChild);
     
-    const statsProgressText = panel.querySelector("#stats-progress-text");
-    const statsProgressBar = panel.querySelector("#stats-progress-bar");
-    const statsPixelCount = panel.querySelector("#stats-pixel-count");
-    const fixCountDisplay = panel.querySelector("#fix-count-display");
+    const panel = document.getElementById('ghost-bot-panel');
+
+    // 事件委托
+    panel.addEventListener('click', e => {
+        if (e.target.id === 'btn-start') if(usw.ghostBot) usw.ghostBot.start();
+        if (e.target.id === 'btn-stop') if(usw.ghostBot) usw.ghostBot.stop();
+        if (e.target.classList.contains('gb-close')) panel.remove();
+    });
+
+    panel.addEventListener('change', e => {
+        if (e.target.id === 'bot-mode-select') {
+            botConfig.mode = e.target.value;
+            const stats = panel.querySelector('#maintain-stats');
+            if (stats) stats.style.display = botConfig.mode === 'maintain' ? 'block' : 'none';
+            log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
+        }
+        if (e.target.id === 'energy-threshold-input') {
+            let val = parseInt(e.target.value, 10);
+            if (val < 1) val = 1;
+            botConfig.energyThreshold = val;
+            log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
+        }
+    });
 
     // 更新 UI 状态辅助
     const setUiRunning = (running) => {
         isRunning = running;
-        if (running) {
-            btnStart.disabled = true;
-            btnStop.disabled = false;
-            modeSelect.disabled = true;
-        } else {
-            btnStart.disabled = false;
-            btnStop.disabled = true;
-            modeSelect.disabled = false;
+        const btnStart = panel.querySelector("#btn-start");
+        const btnStop = panel.querySelector("#btn-stop");
+        const modeSelect = panel.querySelector("#bot-mode-select");
+        if (btnStart && btnStop && modeSelect) {
+            if (running) {
+                btnStart.disabled = true;
+                btnStop.disabled = false;
+                modeSelect.disabled = true;
+            } else {
+                btnStart.disabled = false;
+                btnStop.disabled = true;
+                modeSelect.disabled = false;
+            }
         }
     };
+
+    const fixCountDisplay = panel.querySelector("#fix-count-display");
+    const statsProgressText = panel.querySelector("#stats-progress-text");
+    const statsProgressBar = panel.querySelector("#stats-progress-bar");
+    const statsPixelCount = panel.querySelector("#stats-pixel-count");
 
     // 导出内部函数供外部调用更新
     usw.ghostBotGui = {
@@ -766,8 +681,17 @@ const GUI_STYLES = `
         }
       }
       
-      // Refactored Logic Check
-      if (shouldBotAct(botConfig.mode, currentEnergy, pixelsToPlace.length, botConfig.energyThreshold, maxEnergy)) {
+      // Use Refactored helper
+      const {shouldAct, waitSeconds, target} = evaluateAction({
+        mode: botConfig.mode,
+        currentEnergy,
+        pixelCount: pixelsToPlace.length,
+        threshold: botConfig.energyThreshold,
+        maxEnergy,
+        rate: typeof energyRate !== 'undefined' ? energyRate : 10
+      });
+
+      if (shouldAct) {
         // 决定这次发多少
         const countToSend = Math.min(currentEnergy, pixelsToPlace.length);
         const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
@@ -802,31 +726,7 @@ const GUI_STYLES = `
         }
       }
 
-      // Refactored Wait Calculation
-      const waitSeconds = calculateWaitTime(
-          botConfig.mode, 
-          currentEnergy, 
-          pixelsToPlace.length, 
-          botConfig.energyThreshold, 
-          maxEnergy, 
-          typeof energyRate !== 'undefined' ? energyRate : 10
-      );
-      
-      // Re-calc target for display (optional, but useful for the waitWithCountdown logic)
-      // Since waitWithCountdown takes a simple target for display purposes, we can approximate it 
-      // or pass the one calculated inside. 
-      // For simplicity, I'll let calculateWaitTime handle the math and just pass the display target logic here if needed,
-      // but waitWithCountdown needs the targetEnergy for display.
-      // Let's reconstruct the targetEnergyVal for display:
-      let displayTarget = 1;
-      if (botConfig.mode !== 'maintain') {
-          let t = Math.min(maxEnergy, botConfig.energyThreshold);
-          const rem = Math.max(0, pixelsToPlace.length - currentEnergy);
-          if (rem > 0 && rem < t) t = rem;
-          displayTarget = Math.max(1, t);
-      }
-
-      await waitWithCountdown(waitSeconds, displayTarget);
+      await waitWithCountdown(waitSeconds, target);
     }
     
     // 循环结束（手动停止）
