@@ -154,8 +154,6 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
 }
 
 // Refactored Logic Helper
-// Modified: Removed 'rate' and 'waitSeconds' calculation.
-// Now purely determines the target and if action is needed immediately.
 function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy}) {
   let target = 0;
   if (mode === 'maintain') {
@@ -342,6 +340,10 @@ const GUI_HTML = `
   // 状态变量
   let isRunning = false;
   let fixCounter = 0;
+  
+  // Cache for review fixes
+  let lastKnownEnergy = 0; 
+  let lastCachedProgress = { total: 0, remaining: 0, pct: "0.0" };
 
   // GUI 配置对象
   const botConfig = {
@@ -424,8 +426,25 @@ const GUI_HTML = `
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
-        panel.style.left = `${initialLeft + dx}px`;
-        panel.style.top = `${initialTop + dy}px`;
+        
+        let newLeft = initialLeft + dx;
+        let newTop = initialTop + dy;
+
+        // Boundary Check: Prevent dragging off-screen
+        const rect = panel.getBoundingClientRect();
+        const winWidth = window.innerWidth;
+        const winHeight = window.innerHeight;
+
+        // Clamp left
+        if (newLeft < 0) newLeft = 0;
+        if (newLeft + rect.width > winWidth) newLeft = winWidth - rect.width;
+
+        // Clamp top
+        if (newTop < 0) newTop = 0;
+        if (newTop + rect.height > winHeight) newTop = winHeight - rect.height;
+
+        panel.style.left = `${newLeft}px`;
+        panel.style.top = `${newTop}px`;
     }
 
     function onMouseUp() {
@@ -494,9 +513,20 @@ const GUI_HTML = `
         },
         updateProgress: (total, remaining) => {
             if (!statsPixelCount) return;
+            
+            // Caching Mechanism: Prevent flickering when total is briefly 0
+            if (total === 0) {
+                // If we have cached data, don't update to 0/0 unless we really mean it (e.g., initialization)
+                // But if cached total was > 0, we ignore this temporary glitch.
+                if (lastCachedProgress.total > 0) return;
+            }
+
             const placed = total - remaining;
             const pct = total > 0 ? ((placed / total) * 100).toFixed(1) : "0.0";
             
+            // Update Cache
+            lastCachedProgress = { total, remaining, pct };
+
             statsPixelCount.innerText = `${placed} / ${total}`;
             statsProgressText.innerText = `${pct}%`;
             statsProgressBar.style.width = `${pct}%`;
@@ -708,7 +738,8 @@ const GUI_HTML = `
 
   // Helper to get real-time energy safely
   const getCurrentEnergy = () => {
-      let energy = 0;
+      let energy = undefined;
+      
       // Try getting from unsafeWindow (game state) first
       if (typeof usw.currentEnergy !== "undefined") {
           energy = usw.currentEnergy;
@@ -716,11 +747,17 @@ const GUI_HTML = `
           // Fallback to global scope if accessible
           energy = currentEnergy;
       }
-      return energy;
+
+      if (typeof energy !== 'undefined') {
+          lastKnownEnergy = energy;
+          return energy;
+      }
+
+      // Return cached value if both are undefined (prevents fallback to 0 causing loops)
+      return lastKnownEnergy;
   }
 
   // NEW: Polling-based wait function
-  // Instead of predicting time, this loops and checks the actual energy value.
   const waitForEnergy = async (targetEnergy) => {
     while (true) {
         if (stopWhileLoop || !isRunning) return; 
@@ -735,8 +772,13 @@ const GUI_HTML = `
         const energyStatus = `(${current}/${targetEnergy})`;
         updateGuiStatus(`充能中... ${energyStatus}`, "#1982c4", "⏳");
         
-        // Wait 10 second before checking again.
-        await new Promise(r => setTimeout(r, 10000));
+        // Dynamic Wait:
+        // If we are far from target (>5), wait 30s.
+        // If we are close (<=5), wait 5s to be snappy.
+        const deficit = targetEnergy - current;
+        const waitTime = deficit > 5 ? 30000 : 5000;
+
+        await new Promise(r => setTimeout(r, waitTime));
     }
   };
 
