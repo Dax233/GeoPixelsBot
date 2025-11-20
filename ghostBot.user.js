@@ -422,7 +422,7 @@ const GUI_HTML = `
         e.preventDefault();
     });
 
-    function onMouseMove(e) {
+    const onMouseMove = (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
@@ -447,7 +447,7 @@ const GUI_HTML = `
         panel.style.top = `${newTop}px`;
     }
 
-    function onMouseUp() {
+    const onMouseUp = () => {
         isDragging = false;
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
