@@ -394,6 +394,35 @@ const GUI_HTML = `
     let isDragging = false;
     let startX, startY, initialLeft, initialTop;
 
+    // 保证面板在窗口内可见
+    function ensurePanelInView() {
+        const rect = panel.getBoundingClientRect();
+        let left = rect.left;
+        let top = rect.top;
+        let changed = false;
+
+        if (left < 0) {
+            left = 0;
+            changed = true;
+        } else if (left + rect.width > window.innerWidth) {
+            left = window.innerWidth - rect.width;
+            changed = true;
+        }
+        if (top < 0) {
+            top = 0;
+            changed = true;
+        } else if (top + rect.height > window.innerHeight) {
+            top = window.innerHeight - rect.height;
+            changed = true;
+        }
+        if (changed) {
+            panel.style.left = `${left}px`;
+            panel.style.top = `${top}px`;
+        }
+    }
+
+    window.addEventListener('resize', ensurePanelInView);
+
     // 鼠标按下事件
     header.addEventListener('mousedown', (e) => {
         // 如果点击的是按钮，则不触发拖拽
