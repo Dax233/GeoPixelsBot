@@ -181,7 +181,7 @@ function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy, 
   };
 }
 
-// Styles
+// Extracted Styles and HTML for cleaner main script
 const GUI_STYLES = `
   #ghostBot-gui-panel {
       position: fixed; top: 50px; right: 20px; width: 300px;
@@ -254,6 +254,56 @@ const GUI_STYLES = `
       to { opacity: 1; transform: translateY(0); }
   }
 `;
+
+// Pure static HTML string (No dynamic interpolation to prevent XSS)
+const GUI_HTML = `
+  <div id="ghostBot-gui-panel">
+    <div class="gb-header">
+      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4</span></h3>
+      <span class="gb-close">✕</span>
+    </div>
+    <div id="ghost-status-line">
+      <span id="gb-status-icon">🔴</span>
+      <span id="gb-status-text"> 状态: 已停止</span>
+    </div>
+    <div class="gb-controls">
+      <div class="gb-ctrl-group" style="flex:1">
+        <label class="gb-label">运行模式:</label>
+        <select id="bot-mode-select" class="gb-input">
+          <option value="build">🔨 建造模式</option>
+          <option value="maintain">🛡️ 维护模式</option>
+        </select>
+      </div>
+      <div class="gb-ctrl-group" style="flex:0.6">
+        <label class="gb-label">充能阈值:</label>
+        <input id="energy-threshold-input" type="number" class="gb-input" min="1" max="200">
+      </div>
+    </div>
+    <div class="gb-stats">
+      <div class="gb-row-between gb-progress-meta">
+        <span style="color:#bbb">进度</span>
+        <span id="stats-progress-text" style="color:#1982c4; font-weight:bold">0%</span>
+      </div>
+      <div class="gb-progress-track">
+        <div id="stats-progress-bar"></div>
+      </div>
+      <div class="gb-row-between gb-stat-item">
+        <span style="color:#bbb">🖌️ 像素完成度</span>
+        <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
+      </div>
+      <div id="maintain-stats">
+        <div class="gb-row-between gb-stat-item">
+          <span style="color:#8ac926">🛡️ 已修复总数</span>
+          <span id="fix-count-display" class="gb-stat-val" style="color:#8ac926; font-weight:bold">0</span>
+        </div>
+      </div>
+    </div>
+    <div class="gb-actions">
+      <button id="btn-start" class="gb-btn gb-btn-start">启动</button>
+      <button id="btn-stop" class="gb-btn gb-btn-stop" disabled>停止</button>
+    </div>
+  </div>
+`;
 //#endregion
 
 (function () {
@@ -289,71 +339,28 @@ const GUI_STYLES = `
       }, 4000);
   };
 
-  // 创建 GUI - 重构为模板字符串 + 事件委托
+  // 创建 GUI - 重构为静态模板 + DOM 赋值
   const createGUI = () => {
-    // 修复：分开注入样式和面板 HTML，防止 firstElementChild 只取到 <style> 而忽略 <div>
-    
+    // Guard against duplicate panels
+    if (document.getElementById('ghostBot-gui-panel')) return;
+
     // 1. 注入样式到 HEAD
     const style = document.createElement('style');
     style.textContent = GUI_STYLES;
     document.head.appendChild(style);
 
-    // 2. 构建面板 HTML (不包含 <style>)
-    const panelHTML = `
-      <div id="ghostBot-gui-panel">
-        <div class="gb-header">
-          <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4</span></h3>
-          <span class="gb-close">✕</span>
-        </div>
-        <div id="ghost-status-line">
-          <span id="gb-status-icon">🔴</span>
-          <span id="gb-status-text"> 状态: 已停止</span>
-        </div>
-        <div class="gb-controls">
-          <div class="gb-ctrl-group" style="flex:1">
-            <label class="gb-label">运行模式:</label>
-            <select id="bot-mode-select" class="gb-input">
-              <option value="build">🔨 建造模式</option>
-              <option value="maintain">🛡️ 维护模式</option>
-            </select>
-          </div>
-          <div class="gb-ctrl-group" style="flex:0.6">
-            <label class="gb-label">充能阈值:</label>
-            <input id="energy-threshold-input" type="number" class="gb-input" min="1" max="200" value="${botConfig.energyThreshold}">
-          </div>
-        </div>
-        <div class="gb-stats">
-          <div class="gb-row-between gb-progress-meta">
-            <span style="color:#bbb">进度</span>
-            <span id="stats-progress-text" style="color:#1982c4; font-weight:bold">0%</span>
-          </div>
-          <div class="gb-progress-track">
-            <div id="stats-progress-bar"></div>
-          </div>
-          <div class="gb-row-between gb-stat-item">
-            <span style="color:#bbb">🖌️ 像素完成度</span>
-            <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
-          </div>
-          <div id="maintain-stats">
-            <div class="gb-row-between gb-stat-item">
-              <span style="color:#8ac926">🛡️ 已修复总数</span>
-              <span id="fix-count-display" class="gb-stat-val" style="color:#8ac926; font-weight:bold">0</span>
-            </div>
-          </div>
-        </div>
-        <div class="gb-actions">
-          <button id="btn-start" class="gb-btn gb-btn-start">启动</button>
-          <button id="btn-stop" class="gb-btn gb-btn-stop" disabled>停止</button>
-        </div>
-      </div>
-    `;
-
+    // 2. 构建面板
     const wrapper = document.createElement('div');
-    wrapper.innerHTML = panelHTML;
-    // 现在 firstElementChild 确保是 div 面板
-    document.body.appendChild(wrapper.firstElementChild);
+    wrapper.innerHTML = GUI_HTML;
+    const panel = wrapper.firstElementChild;
     
-    const panel = document.getElementById('ghostBot-gui-panel');
+    // 3. 安全地设置动态值 (防止 XSS)
+    const thresholdInput = panel.querySelector('#energy-threshold-input');
+    if (thresholdInput) {
+        thresholdInput.value = botConfig.energyThreshold;
+    }
+
+    document.body.appendChild(panel);
 
     // 事件委托
     panel.addEventListener('click', e => {
@@ -769,9 +776,7 @@ const GUI_STYLES = `
 
   // 初始化 GUI
   function ensureSingleGUI() {
-    if (!document.getElementById("ghostBot-gui-panel")) {
-      createGUI();
-    }
+    createGUI();
   }
 
   if (document.readyState === "loading") {
