@@ -152,6 +152,130 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     tileData[idx + 3] !== pixel.color.a
   );
 }
+
+// DOM Helper
+function el(tag, options = {}, children = []) {
+  const e = document.createElement(tag);
+  // Handle special keys like 'style' (object) separately if needed, 
+  // but standard assignment works for most props including className.
+  Object.keys(options).forEach(key => {
+      if (key === 'style' && typeof options[key] === 'object') {
+          Object.assign(e.style, options[key]);
+      } else if (key.startsWith('on') && typeof options[key] === 'function') {
+          e.addEventListener(key.substring(2).toLowerCase(), options[key]);
+      } else {
+          e[key] = options[key];
+      }
+  });
+  children.forEach(c => {
+      if (typeof c === 'string') e.appendChild(document.createTextNode(c));
+      else e.appendChild(c);
+  });
+  return e;
+}
+
+// Logic Helpers
+function shouldBotAct(mode, currentEnergy, pixelsCount, threshold, maxEnergy) {
+  if (mode === 'maintain') {
+      return currentEnergy > 0;
+  }
+  
+  const userThreshold = Math.min(threshold, maxEnergy);
+  
+  if (pixelsCount >= userThreshold) {
+      return currentEnergy >= userThreshold;
+  } else {
+      // 剩余像素少于阈值，有多少发多少
+      return currentEnergy >= pixelsCount || currentEnergy === maxEnergy;
+  }
+}
+
+function calculateWaitTime(mode, currentEnergy, pixelsCount, threshold, maxEnergy, rate) {
+  let targetEnergyVal = 0;
+
+  if (mode === 'maintain') {
+      targetEnergyVal = 1;
+  } else {
+       // 粗略估计剩余需要的能量
+       const remainingPixels = Math.max(0, pixelsCount - currentEnergy); 
+       let t = Math.min(maxEnergy, threshold);
+       
+       // 如果剩下的像素非常少（小于阈值），我们只需要攒到正好能画完的能量即可
+       if (remainingPixels > 0 && remainingPixels < t) {
+           t = remainingPixels;
+       }
+       targetEnergyVal = Math.max(1, t);
+  }
+
+  if (currentEnergy < targetEnergyVal) {
+      // rate default to 10s if undefined
+      const r = (typeof rate !== 'undefined' ? rate : 10);
+      return (targetEnergyVal - currentEnergy) * r;
+  }
+  
+  return 1; // minimal wait
+}
+
+// Styles
+const GUI_STYLES = `
+  #ghost-bot-panel {
+      position: fixed; top: 50px; right: 20px; width: 300px;
+      background: rgba(20, 20, 30, 0.95); color: #eee;
+      border: 1px solid #444; border-radius: 8px;
+      padding: 12px; z-index: 10000; font-family: 'Segoe UI', sans-serif;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+      font-size: 13px;
+  }
+  .gb-header {
+      display:flex; justify-content:space-between; align-items:center; 
+      margin-bottom:12px; border-bottom:1px solid #555; padding-bottom:8px;
+  }
+  .gb-title { margin:0; font-size:16px; color:#a8d0dc; font-weight:bold; }
+  .gb-ver { font-size:10px; color:#666; }
+  .gb-close { font-size:16px; cursor:pointer; color:#888; font-weight:bold; }
+  .gb-close:hover { color: #fff; }
+  
+  #ghost-status-line {
+      margin-bottom:12px; font-size:14px; font-weight:bold; 
+      color:#ff595e; display:flex; align-items:center; gap:5px;
+  }
+  
+  .gb-controls { display:flex; gap:10px; margin-bottom:10px; }
+  .gb-ctrl-group { display:flex; flex-direction:column; }
+  .gb-label { margin-bottom:4px; color:#ccc; }
+  .gb-input { 
+      width:100%; background:#333; color:white; 
+      border:1px solid #555; border-radius:4px; padding:4px; box-sizing:border-box;
+  }
+  
+  .gb-stats {
+      background:#1a1a24; padding:10px; border-radius:6px; 
+      border:1px solid #444; margin-bottom:12px;
+  }
+  .gb-row-between { display:flex; justify-content:space-between; }
+  .gb-progress-meta { margin-bottom:2px; }
+  .gb-progress-track { height:6px; background:#333; border-radius:3px; overflow:hidden; margin-bottom:8px; }
+  #stats-progress-bar { width:0%; height:100%; background:#1982c4; transition: width 0.3s ease; }
+  
+  .gb-stat-item { font-size:12px; margin-bottom:5px; }
+  .gb-stat-val { font-family:monospace; color:#eee; }
+  
+  #maintain-stats { 
+      display:none; border-top:1px solid #333; 
+      padding-top:5px; margin-top:5px; 
+  }
+  
+  .gb-actions { display:flex; gap:8px; }
+  .gb-btn {
+      flex:1; border:none; padding:8px; border-radius:4px; 
+      cursor:pointer; font-weight:bold; transition:all 0.2s;
+  }
+  .gb-btn-start { background:#1982c4; color:white; }
+  .gb-btn-start:disabled { background:#444; color:#aaa; cursor:not-allowed; }
+  
+  .gb-btn-stop { background:#8b1d24; color:white; }
+  .gb-btn-stop:disabled { background:#444; color:#aaa; cursor:not-allowed; }
+`;
 //#endregion
 
 (function () {
@@ -172,146 +296,151 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     autoRestart: true,
   };
 
+  // 创建 GUI 组件函数
+  const buildHeader = () => {
+      return el('div', { className: 'gb-header' }, [
+          el('h3', { className: 'gb-title' }, [
+              '👻 GhostPixel Bot ',
+              el('span', { className: 'gb-ver', innerText: 'v0.4' })
+          ]),
+          el('span', { 
+              className: 'gb-close', 
+              innerText: '✕',
+              onclick: (e) => e.target.closest('#ghost-bot-panel').remove() 
+          })
+      ]);
+  };
+
+  const buildControls = () => {
+      const modeSelect = el('select', { id: 'bot-mode-select', className: 'gb-input' }, [
+          el('option', { value: 'build', innerText: '🔨 建造模式' }),
+          el('option', { value: 'maintain', innerText: '🛡️ 维护模式' })
+      ]);
+
+      const energyInput = el('input', { 
+          id: 'energy-threshold-input', 
+          type: 'number', 
+          className: 'gb-input',
+          value: botConfig.energyThreshold, 
+          min: 1, max: 200 
+      });
+
+      return el('div', { className: 'gb-controls' }, [
+          el('div', { className: 'gb-ctrl-group', style: { flex: 1 } }, [
+              el('label', { className: 'gb-label', innerText: '运行模式:' }),
+              modeSelect
+          ]),
+          el('div', { className: 'gb-ctrl-group', style: { flex: 0.6 } }, [
+              el('label', { className: 'gb-label', innerText: '充能阈值:' }),
+              energyInput
+          ])
+      ]);
+  };
+
+  const buildStats = () => {
+      return el('div', { className: 'gb-stats' }, [
+          // Progress
+          el('div', { className: 'gb-row-between gb-progress-meta' }, [
+              el('span', { style: { color: '#bbb' }, innerText: '进度' }),
+              el('span', { id: 'stats-progress-text', style: { color: '#1982c4', fontWeight: 'bold' }, innerText: '0%' })
+          ]),
+          el('div', { className: 'gb-progress-track' }, [
+              el('div', { id: 'stats-progress-bar' })
+          ]),
+          // Pixels
+          el('div', { className: 'gb-row-between gb-stat-item' }, [
+              el('span', { style: { color: '#bbb' }, innerText: '🖌️ 像素完成度' }),
+              el('span', { id: 'stats-pixel-count', className: 'gb-stat-val', innerText: '- / -' })
+          ]),
+          // Maintain Stats
+          el('div', { id: 'maintain-stats' }, [
+              el('div', { className: 'gb-row-between gb-stat-item' }, [
+                  el('span', { style: { color: '#8ac926' }, innerText: '🛡️ 已修复总数' }),
+                  el('span', { id: 'fix-count-display', className: 'gb-stat-val', style: { color: '#8ac926', fontWeight: 'bold' }, innerText: '0' })
+              ])
+          ])
+      ]);
+  };
+
+  const buildButtons = () => {
+      return el('div', { className: 'gb-actions' }, [
+          el('button', { id: 'btn-start', className: 'gb-btn gb-btn-start', innerText: '启动' }),
+          el('button', { id: 'btn-stop', className: 'gb-btn gb-btn-stop', innerText: '停止', disabled: true })
+      ]);
+  };
+
+  const bindGUIEvents = (panel) => {
+      const btnStart = panel.querySelector("#btn-start");
+      const btnStop = panel.querySelector("#btn-stop");
+      const modeSelect = panel.querySelector("#bot-mode-select");
+      const energyInput = panel.querySelector("#energy-threshold-input");
+      const fixStats = panel.querySelector("#maintain-stats");
+
+      btnStart.onclick = () => { if (usw.ghostBot) usw.ghostBot.start(); };
+      btnStop.onclick = () => { if (usw.ghostBot) usw.ghostBot.stop(); };
+
+      energyInput.onchange = (e) => {
+          let val = parseInt(e.target.value, 10);
+          if (val < 1) val = 1;
+          botConfig.energyThreshold = val;
+          log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
+      };
+
+      modeSelect.onchange = (e) => {
+          botConfig.mode = e.target.value;
+          if (botConfig.mode === 'maintain') {
+              fixStats.style.display = 'block';
+          } else {
+              fixStats.style.display = 'none';
+          }
+          log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
+      };
+  };
+
   // 创建 GUI
   const createGUI = () => {
-    const panel = document.createElement("div");
-    panel.id = "ghost-bot-panel";
-    panel.style.cssText = `
-          position: fixed; top: 50px; right: 20px; width: 300px;
-          background: rgba(20, 20, 30, 0.95); color: #eee;
-          border: 1px solid #444; border-radius: 8px;
-          padding: 12px; z-index: 10000; font-family: 'Segoe UI', sans-serif;
-          box-shadow: 0 8px 20px rgba(0,0,0,0.6); backdrop-filter: blur(8px);
-          font-size: 13px;
-      `;
+    // Inject CSS
+    const styleTag = document.createElement('style');
+    styleTag.textContent = GUI_STYLES;
+    document.head.appendChild(styleTag);
 
-    panel.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #555; padding-bottom:8px;">
-              <h3 style="margin:0; font-size:16px; color:#a8d0dc; font-weight:bold;">👻 GhostPixel Bot <span style="font-size:10px; color:#666;">v0.4</span></h3>
-              <span style="font-size:16px; cursor:pointer; color:#888; font-weight:bold;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" onclick="this.parentElement.parentElement.remove()">✕</span>
-          </div>
-          
-          <div id="ghost-status-line" style="margin-bottom:12px; font-size:14px; font-weight:bold; color:#ff595e; display:flex; align-items:center; gap:5px;">
-              <span>🔴</span> <span>状态: 已停止</span>
-          </div>
-
-          <div style="display:flex; gap:10px; margin-bottom:10px;">
-             <div style="flex:1;">
-                <label style="display:block; margin-bottom:4px; color:#ccc;">运行模式:</label>
-                <select id="bot-mode-select" style="width:100%; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:4px;">
-                    <option value="build">🔨 建造模式</option>
-                    <option value="maintain">🛡️ 维护模式</option>
-                </select>
-             </div>
-             <div style="flex:0.6;">
-                <label style="display:block; margin-bottom:4px; color:#ccc;">充能阈值:</label>
-                <input type="number" id="energy-threshold-input" value="${botConfig.energyThreshold}" min="1" max="200" 
-                  style="width:100%; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:4px;">
-             </div>
-          </div>
-
-          <!-- 统计面板区域 -->
-          <div style="background:#1a1a24; padding:10px; border-radius:6px; border:1px solid #444; margin-bottom:12px;">
-             
-             <!-- 进度条 -->
-             <div style="margin-bottom:8px;">
-                <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
-                   <span style="color:#bbb;">进度</span>
-                   <span id="stats-progress-text" style="color:#1982c4; font-weight:bold;">0%</span>
-                </div>
-                <div style="height:6px; background:#333; border-radius:3px; overflow:hidden;">
-                   <div id="stats-progress-bar" style="width:0%; height:100%; background:#1982c4; transition: width 0.3s ease;"></div>
-                </div>
-             </div>
-
-             <!-- 像素统计 -->
-             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
-                <span style="color:#bbb;">🖌️ 像素完成度</span>
-                <span id="stats-pixel-count" style="font-family:monospace; color:#eee;">- / -</span>
-             </div>
-
-             <!-- 维护统计 (仅维护模式显示) -->
-             <div id="maintain-stats" style="display:none; border-top:1px solid #333; padding-top:5px; margin-top:5px;">
-                <div style="display:flex; justify-content:space-between; font-size:12px;">
-                    <span style="color:#8ac926;">🛡️ 已修复总数</span>
-                    <span id="fix-count-display" style="font-family:monospace; color:#8ac926; font-weight:bold;">0</span>
-                </div>
-             </div>
-
-          </div>
-
-          <div style="display:flex; gap:8px;">
-              <button id="btn-start" style="flex:1; background:#1982c4; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold; transition:all 0.2s;">启动</button>
-              <button id="btn-stop" disabled style="flex:1; background:#444; color:#aaa; border:none; padding:8px; border-radius:4px; cursor:not-allowed; font-weight:bold; transition:all 0.2s;">停止</button>
-          </div>
-      `;
+    // Build Panel
+    const panel = el('div', { id: 'ghost-bot-panel' }, [
+        buildHeader(),
+        el('div', { id: 'ghost-status-line' }, [
+            el('span', { innerText: '🔴' }),
+            el('span', { innerText: ' 状态: 已停止' })
+        ]),
+        buildControls(),
+        buildStats(),
+        buildButtons()
+    ]);
 
     document.body.appendChild(panel);
+    bindGUIEvents(panel);
 
-    // 元素引用
-    const btnStart = document.getElementById("btn-start");
-    const btnStop = document.getElementById("btn-stop");
-    const modeSelect = document.getElementById("bot-mode-select");
-    const fixStats = document.getElementById("maintain-stats");
+    // 元素引用 (用于更新 UI 辅助函数)
+    const btnStart = panel.querySelector("#btn-start");
+    const btnStop = panel.querySelector("#btn-stop");
+    const modeSelect = panel.querySelector("#bot-mode-select");
     
-    const statsProgressText = document.getElementById("stats-progress-text");
-    const statsProgressBar = document.getElementById("stats-progress-bar");
-    const statsPixelCount = document.getElementById("stats-pixel-count");
-    const fixCountDisplay = document.getElementById("fix-count-display");
+    const statsProgressText = panel.querySelector("#stats-progress-text");
+    const statsProgressBar = panel.querySelector("#stats-progress-bar");
+    const statsPixelCount = panel.querySelector("#stats-pixel-count");
+    const fixCountDisplay = panel.querySelector("#fix-count-display");
 
     // 更新 UI 状态辅助
     const setUiRunning = (running) => {
         isRunning = running;
         if (running) {
             btnStart.disabled = true;
-            btnStart.style.background = "#444";
-            btnStart.style.color = "#aaa";
-            btnStart.style.cursor = "not-allowed";
-            
             btnStop.disabled = false;
-            btnStop.style.background = "#8b1d24";
-            btnStop.style.color = "white";
-            btnStop.style.cursor = "pointer";
-            
             modeSelect.disabled = true;
         } else {
             btnStart.disabled = false;
-            btnStart.style.background = "#1982c4";
-            btnStart.style.color = "white";
-            btnStart.style.cursor = "pointer";
-            
             btnStop.disabled = true;
-            btnStop.style.background = "#444";
-            btnStop.style.color = "#aaa";
-            btnStop.style.cursor = "not-allowed";
-
             modeSelect.disabled = false;
         }
-    };
-
-    // 绑定事件
-    btnStart.onclick = () => {
-      if (usw.ghostBot) usw.ghostBot.start();
-    };
-    btnStop.onclick = () => {
-      if (usw.ghostBot) usw.ghostBot.stop();
-    };
-    
-    document.getElementById("energy-threshold-input").onchange = (e) => {
-      let val = parseInt(e.target.value, 10);
-      if (val < 1) val = 1;
-      botConfig.energyThreshold = val;
-      log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
-    };
-
-    modeSelect.onchange = (e) => {
-        botConfig.mode = e.target.value;
-        if (botConfig.mode === 'maintain') {
-            fixStats.style.display = 'block';
-        } else {
-            fixStats.style.display = 'none';
-        }
-        log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
     };
 
     // 导出内部函数供外部调用更新
@@ -536,7 +665,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     while (remaining > 0) {
         if (stopWhileLoop) break;
         
-        // 尝试从 unsafeWindow 更新 energy
+        // 尝试从 unsafeWindow 更新 energy (解决审阅意见)
         // 如果无法从 unsafeWindow 获取，则回退到全局变量 currentEnergy
         let displayEnergy = currentEnergy;
         if (typeof usw.currentEnergy !== "undefined") {
@@ -599,25 +728,8 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
         }
       }
       
-      // 在维护模式下，阈值强制设为 1，确保发现错误立刻修补
-      const userThreshold = botConfig.mode === 'maintain' ? 1 : Math.min(botConfig.energyThreshold, maxEnergy);
-      
-      // 检查是否有足够能量进行操作
-      let shouldAct = false;
-      
-      if (botConfig.mode === 'maintain') {
-                shouldAct = currentEnergy > 0;
-            }
-      else if (pixelsToPlace.length >= userThreshold) {
-                    shouldAct = currentEnergy >= userThreshold;
-                }
-      else {
-                    // 剩余像素少于阈值，有多少发多少
-                    shouldAct = currentEnergy >= pixelsToPlace.length || currentEnergy === maxEnergy;
-                }
-
-
-      if (shouldAct) {
+      // Refactored Logic Check
+      if (shouldBotAct(botConfig.mode, currentEnergy, pixelsToPlace.length, botConfig.energyThreshold, maxEnergy)) {
         // 决定这次发多少
         const countToSend = Math.min(currentEnergy, pixelsToPlace.length);
         const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
@@ -652,29 +764,31 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
         }
       }
 
+      // Refactored Wait Calculation
+      const waitSeconds = calculateWaitTime(
+          botConfig.mode, 
+          currentEnergy, 
+          pixelsToPlace.length, 
+          botConfig.energyThreshold, 
+          maxEnergy, 
+          typeof energyRate !== 'undefined' ? energyRate : 10
+      );
       
-      let targetEnergyVal = 0;
-
-      if (botConfig.mode === 'maintain') {
-          targetEnergyVal = 1;
-      } else {
-           const remainingPixels = Math.max(0, pixelsToPlace.length - currentEnergy); // 粗略估计
-           targetEnergyVal = Math.min(maxEnergy, botConfig.energyThreshold);
-           if (remainingPixels > 0 && remainingPixels < targetEnergyVal) {
-               targetEnergyVal = remainingPixels;
-           }
-      // Ensure targetEnergyVal is always at least 1
-      targetEnergyVal = Math.max(1, targetEnergyVal);
+      // Re-calc target for display (optional, but useful for the waitWithCountdown logic)
+      // Since waitWithCountdown takes a simple target for display purposes, we can approximate it 
+      // or pass the one calculated inside. 
+      // For simplicity, I'll let calculateWaitTime handle the math and just pass the display target logic here if needed,
+      // but waitWithCountdown needs the targetEnergy for display.
+      // Let's reconstruct the targetEnergyVal for display:
+      let displayTarget = 1;
+      if (botConfig.mode !== 'maintain') {
+          let t = Math.min(maxEnergy, botConfig.energyThreshold);
+          const rem = Math.max(0, pixelsToPlace.length - currentEnergy);
+          if (rem > 0 && rem < t) t = rem;
+          displayTarget = Math.max(1, t);
       }
 
-      let waitSeconds = 0;
-      if (currentEnergy < targetEnergyVal) {
-        waitSeconds = (targetEnergyVal - currentEnergy) * (typeof energyRate !== 'undefined' ? energyRate : 10);
-      } else {
-          waitSeconds = 1; 
-      }
-
-      await waitWithCountdown(waitSeconds, targetEnergyVal);
+      await waitWithCountdown(waitSeconds, displayTarget);
     }
     
     // 循环结束（手动停止）
