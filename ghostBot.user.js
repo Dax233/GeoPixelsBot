@@ -407,9 +407,10 @@ const GUI_STYLES = `
     // Build Panel
     const panel = el('div', { id: 'ghost-bot-panel' }, [
         buildHeader(),
+        // 修改状态栏结构，增加 ID
         el('div', { id: 'ghost-status-line' }, [
-            el('span', { innerText: '🔴' }),
-            el('span', { innerText: ' 状态: 已停止' })
+            el('span', { id: 'gb-status-icon', innerText: '🔴' }),
+            el('span', { id: 'gb-status-text', innerText: ' 状态: 已停止' })
         ]),
         buildControls(),
         buildStats(),
@@ -469,11 +470,15 @@ const GUI_STYLES = `
     };
   }
 
-  // 更新 GUI 状态文字
+  // 更新 GUI 状态文字 (移除 innerHTML)
   const updateGuiStatus = (status, color = "white", icon = "ℹ️") => {
-    const el = document.getElementById("ghost-status-line");
-    if (el) {
-      el.innerHTML = `<span>${icon}</span> <span style="color:${color}">${status}</span>`;
+    const iconEl = document.getElementById("gb-status-icon");
+    const textEl = document.getElementById("gb-status-text");
+    
+    if (iconEl) iconEl.innerText = icon;
+    if (textEl) {
+        textEl.innerText = status;
+        textEl.style.color = color;
     }
   }
 
