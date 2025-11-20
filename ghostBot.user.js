@@ -656,7 +656,6 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
            if (remainingPixels > 0 && remainingPixels < targetEnergyVal) {
                targetEnergyVal = remainingPixels;
            }
-      }
       // Ensure targetEnergyVal is always at least 1
       targetEnergyVal = Math.max(1, targetEnergyVal);
       }
