@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - audio alerts
 - visual debugging overlay
 
+## [0.4.1] - 2025-11-21
+### Added
+- **Minimize Functionality:** Added a minimize button (`_`) to the GUI, allowing the panel to collapse into a compact header to avoid blocking the canvas.
+- **Boundary Protection:** The GUI panel is now strictly constrained within the browser viewport, preventing it from being dragged off-screen or lost during window resizing.
+
+### Changed
+- **Polling Logic:** Simplified the energy waiting logic to a robust, fixed-interval check, removing unnecessary complexity.
+- **Code Cleanup:** Inlined UI helper functions to reduce abstraction and streamline the script structure as per code review suggestions.
+
+### Fixed
+- **Energy Safety:** Fixed potential issues where undefined energy values could cause the bot to stall (implemented safe integer fallback).
+- **UI Flickering:** Removed over-aggressive progress caching to ensure the progress bar always reflects real-time state.
+
 ## [0.4.0] - 2025-11-21
 ### Added
 - **Graphical User Interface (GUI):** A draggable, comprehensive control panel to manage the bot without console commands.
