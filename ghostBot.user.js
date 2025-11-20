@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GhostPixel Bot (Dax233's Fork)
 // @namespace    https://github.com/Dax233
-// @version      0.4.0
+// @version      0.4.1
 // @description  A bot to place pixels from the ghost image on https://geopixels.net
 // @author       Dax233 (Original by nymtuta)
 // @match        https://*.geopixels.net/*
@@ -185,16 +185,42 @@ const GUI_STYLES = `
       padding: 12px; z-index: 10000; font-family: 'Segoe UI', sans-serif;
       box-shadow: 0 8px 20px rgba(0,0,0,0.6); backdrop-filter: blur(8px);
       font-size: 13px;
+      transition: height 0.3s ease;
   }
+  
+  /* Minimized State Styles */
+  #ghostBot-gui-panel.gb-minimized {
+      width: auto;
+      min-width: 200px;
+      padding-bottom: 6px;
+  }
+  #ghostBot-gui-panel.gb-minimized .gb-content {
+      display: none;
+  }
+  #ghostBot-gui-panel.gb-minimized .gb-header {
+      margin-bottom: 0;
+      border-bottom: none;
+      padding-bottom: 0;
+  }
+
   .gb-header {
       display:flex; justify-content:space-between; align-items:center; 
       margin-bottom:12px; border-bottom:1px solid #555; padding-bottom:8px;
+      cursor: move; /* Draggable cursor */
+      user-select: none;
   }
+  
+  .gb-window-ctrls { display:flex; align-items:center; gap: 12px; }
+  .gb-min-btn { cursor:pointer; color:#888; font-weight:bold; font-size: 14px; }
+  .gb-min-btn:hover { color: #fff; }
+  
   .gb-title { margin:0; font-size:16px; color:#a8d0dc; font-weight:bold; }
   .gb-ver { font-size:10px; color:#666; }
   .gb-close { font-size:16px; cursor:pointer; color:#888; font-weight:bold; }
   .gb-close:hover { color: #fff; }
   
+  .gb-content { display: block; } /* Wrapper for collapsible content */
+
   #ghost-status-line {
       margin-bottom:12px; font-size:14px; font-weight:bold; 
       color:#ff595e; display:flex; align-items:center; gap:5px;
@@ -250,52 +276,57 @@ const GUI_STYLES = `
   }
 `;
 
-// Pure static HTML string (No dynamic interpolation to prevent XSS)
+// Pure static HTML string
 const GUI_HTML = `
   <div id="ghostBot-gui-panel">
     <div class="gb-header">
-      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4</span></h3>
-      <span class="gb-close">✕</span>
-    </div>
-    <div id="ghost-status-line">
-      <span id="gb-status-icon">🔴</span>
-      <span id="gb-status-text"> 状态: 已停止</span>
-    </div>
-    <div class="gb-controls">
-      <div class="gb-ctrl-group" style="flex:1">
-        <label class="gb-label">运行模式:</label>
-        <select id="bot-mode-select" class="gb-input">
-          <option value="build">🔨 建造模式</option>
-          <option value="maintain">🛡️ 维护模式</option>
-        </select>
-      </div>
-      <div class="gb-ctrl-group" style="flex:0.6">
-        <label class="gb-label">充能阈值:</label>
-        <input id="energy-threshold-input" type="number" class="gb-input" min="1" max="200">
+      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4.1</span></h3>
+      <div class="gb-window-ctrls">
+        <span class="gb-min-btn" title="最小化/还原">_</span>
+        <span class="gb-close" title="关闭">✕</span>
       </div>
     </div>
-    <div class="gb-stats">
-      <div class="gb-row-between gb-progress-meta">
-        <span style="color:#bbb">进度</span>
-        <span id="stats-progress-text" style="color:#1982c4; font-weight:bold">0%</span>
-      </div>
-      <div class="gb-progress-track">
-        <div id="stats-progress-bar"></div>
-      </div>
-      <div class="gb-row-between gb-stat-item">
-        <span style="color:#bbb">🖌️ 像素完成度</span>
-        <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
-      </div>
-      <div id="maintain-stats">
-        <div class="gb-row-between gb-stat-item">
-          <span style="color:#8ac926">🛡️ 已修复总数</span>
-          <span id="fix-count-display" class="gb-stat-val" style="color:#8ac926; font-weight:bold">0</span>
+    <div class="gb-content">
+        <div id="ghost-status-line">
+          <span id="gb-status-icon">🔴</span>
+          <span id="gb-status-text"> 状态: 已停止</span>
         </div>
-      </div>
-    </div>
-    <div class="gb-actions">
-      <button id="btn-start" class="gb-btn gb-btn-start">启动</button>
-      <button id="btn-stop" class="gb-btn gb-btn-stop" disabled>停止</button>
+        <div class="gb-controls">
+          <div class="gb-ctrl-group" style="flex:1">
+            <label class="gb-label">运行模式:</label>
+            <select id="bot-mode-select" class="gb-input">
+              <option value="build">🔨 建造模式</option>
+              <option value="maintain">🛡️ 维护模式</option>
+            </select>
+          </div>
+          <div class="gb-ctrl-group" style="flex:0.6">
+            <label class="gb-label">充能阈值:</label>
+            <input id="energy-threshold-input" type="number" class="gb-input" min="1" max="200">
+          </div>
+        </div>
+        <div class="gb-stats">
+          <div class="gb-row-between gb-progress-meta">
+            <span style="color:#bbb">进度</span>
+            <span id="stats-progress-text" style="color:#1982c4; font-weight:bold">0%</span>
+          </div>
+          <div class="gb-progress-track">
+            <div id="stats-progress-bar"></div>
+          </div>
+          <div class="gb-row-between gb-stat-item">
+            <span style="color:#bbb">🖌️ 像素完成度</span>
+            <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
+          </div>
+          <div id="maintain-stats">
+            <div class="gb-row-between gb-stat-item">
+              <span style="color:#8ac926">🛡️ 已修复总数</span>
+              <span id="fix-count-display" class="gb-stat-val" style="color:#8ac926; font-weight:bold">0</span>
+            </div>
+          </div>
+        </div>
+        <div class="gb-actions">
+          <button id="btn-start" class="gb-btn gb-btn-start">启动</button>
+          <button id="btn-stop" class="gb-btn gb-btn-stop" disabled>停止</button>
+        </div>
     </div>
   </div>
 `;
@@ -357,11 +388,63 @@ const GUI_HTML = `
 
     document.body.appendChild(panel);
 
-    // 事件委托
+    const header = panel.querySelector('.gb-header');
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    // 鼠标按下事件
+    header.addEventListener('mousedown', (e) => {
+        // 如果点击的是按钮，则不触发拖拽
+        if(e.target.classList.contains('gb-close') || e.target.classList.contains('gb-min-btn')) return;
+        
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        // 获取当前面板的位置
+        const rect = panel.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+        
+        // 将定位方式从 right/bottom 等改为绝对的 left/top，防止跳动
+        panel.style.right = 'auto';
+        panel.style.bottom = 'auto';
+        panel.style.left = `${initialLeft}px`;
+        panel.style.top = `${initialTop}px`;
+        
+        // 在 document 上监听移动，防止鼠标移出面板范围失效
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        
+        // 防止选中文本
+        e.preventDefault();
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        panel.style.left = `${initialLeft + dx}px`;
+        panel.style.top = `${initialTop + dy}px`;
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+
     panel.addEventListener('click', e => {
         if (e.target.id === 'btn-start') if(usw.ghostBot) usw.ghostBot.start();
         if (e.target.id === 'btn-stop') if(usw.ghostBot) usw.ghostBot.stop();
         if (e.target.classList.contains('gb-close')) panel.remove();
+        
+        // 最小化逻辑
+        if (e.target.classList.contains('gb-min-btn')) {
+            panel.classList.toggle('gb-minimized');
+            const isMin = panel.classList.contains('gb-minimized');
+            e.target.innerText = isMin ? '□' : '_'; // 切换图标
+        }
     });
 
     panel.addEventListener('change', e => {
@@ -652,10 +735,8 @@ const GUI_HTML = `
         const energyStatus = `(${current}/${targetEnergy})`;
         updateGuiStatus(`充能中... ${energyStatus}`, "#1982c4", "⏳");
         
-        // Wait 1 second before checking again.
-        // Even though the user suggested 1 minute, checking every 1s is very cheap
-        // and ensures the bot reacts immediately if energy is gained via bonus/manual actions.
-        await new Promise(r => setTimeout(r, 1000));
+        // Wait 10 second before checking again.
+        await new Promise(r => setTimeout(r, 10000));
     }
   };
 
