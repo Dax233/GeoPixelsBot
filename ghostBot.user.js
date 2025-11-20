@@ -183,7 +183,7 @@ function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy, 
 
 // Styles
 const GUI_STYLES = `
-  #ghost-bot-panel {
+  #ghostBot-gui-panel {
       position: fixed; top: 50px; right: 20px; width: 300px;
       background: rgba(20, 20, 30, 0.95); color: #eee;
       border: 1px solid #444; border-radius: 8px;
@@ -291,9 +291,16 @@ const GUI_STYLES = `
 
   // 创建 GUI - 重构为模板字符串 + 事件委托
   const createGUI = () => {
+    // 修复：分开注入样式和面板 HTML，防止 firstElementChild 只取到 <style> 而忽略 <div>
+    
+    // 1. 注入样式到 HEAD
+    const style = document.createElement('style');
+    style.textContent = GUI_STYLES;
+    document.head.appendChild(style);
+
+    // 2. 构建面板 HTML (不包含 <style>)
     const panelHTML = `
-      <style>${GUI_STYLES}</style>
-      <div id="ghost-bot-panel">
+      <div id="ghostBot-gui-panel">
         <div class="gb-header">
           <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4</span></h3>
           <span class="gb-close">✕</span>
@@ -343,9 +350,10 @@ const GUI_STYLES = `
 
     const wrapper = document.createElement('div');
     wrapper.innerHTML = panelHTML;
+    // 现在 firstElementChild 确保是 div 面板
     document.body.appendChild(wrapper.firstElementChild);
     
-    const panel = document.getElementById('ghost-bot-panel');
+    const panel = document.getElementById('ghostBot-gui-panel');
 
     // 事件委托
     panel.addEventListener('click', e => {
@@ -760,10 +768,16 @@ const GUI_STYLES = `
   };
 
   // 初始化 GUI
+  function ensureSingleGUI() {
+    if (!document.getElementById("ghostBot-gui-panel")) {
+      createGUI();
+    }
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", createGUI);
+    document.addEventListener("DOMContentLoaded", ensureSingleGUI);
   } else {
-    createGUI();
+    ensureSingleGUI();
   }
 
   log(LOG_LEVELS.info, "GhostPixel Bot v0.4 Loaded.");
