@@ -195,6 +195,19 @@ const GUI_STYLES = `
       min-width: 200px;
       padding-bottom: 6px;
   }
+
+  /* Responsive: Minimized panel on very small screens */
+  @media (max-width: 350px) {
+    #ghostBot-gui-panel.gb-minimized {
+      min-width: 120px;
+      max-width: 95vw;
+      padding-bottom: 3px;
+    }
+    #ghostBot-gui-panel.gb-minimized .gb-header {
+      font-size: 12px;
+      padding-bottom: 0;
+    }
+  }
   #ghostBot-gui-panel.gb-minimized .gb-content {
       display: none;
   }
