@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GhostPixel Bot (Dax233's Fork)
 // @namespace    https://github.com/Dax233
-// @version      0.3.4
+// @version      0.4.0
 // @description  A bot to place pixels from the ghost image on https://geopixels.net
 // @author       Dax233 (Original by nymtuta)
 // @match        https://*.geopixels.net/*
@@ -63,30 +63,16 @@ const LOG_LEVELS = {
   info: { label: "INF", color: "lime" },
   warn: { label: "WRN", color: "yellow" },
   debug: { label: "DBG", color: "cyan" },
+  success: { label: "SUC", color: "#00ff00" },
 };
 
-// GUI 日志输出辅助函数
-function logToGui(msg) {
-  const logArea = document.getElementById("ghost-log-area");
-  if (logArea) {
-    const time = new Date().toLocaleTimeString();
-    logArea.innerHTML += `<div>[${time}] ${msg}</div>`;
-    logArea.scrollTop = logArea.scrollHeight;
-  }
-}
-
 function log(lvl, ...args) {
-  const msg = args.join(" ");
   console.log(
     `%c[ghostBot] %c[${lvl.label}]`,
     "color: rebeccapurple;",
     `color:${lvl.color};`,
     ...args
   );
-  // 同步输出到 GUI，除非是 debug
-  if (lvl.label !== "DBG") {
-    logToGui(msg);
-  }
 }
 
 class ImageData {
@@ -175,9 +161,14 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   const gIdOnloadElement = document.getElementById("g_id_onload");
   let GOOGLE_CLIENT_ID;
 
+  // 状态变量
+  let isRunning = false;
+  let fixCounter = 0;
+
   // GUI 配置对象
   const botConfig = {
     energyThreshold: 10, // 默认攒 10 点能量
+    mode: "build", // "build" | "maintain"
     autoRestart: true,
   };
 
@@ -186,66 +177,174 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     const panel = document.createElement("div");
     panel.id = "ghost-bot-panel";
     panel.style.cssText = `
-          position: fixed; top: 50px; right: 20px; width: 280px;
-          background: rgba(20, 20, 30, 0.9); color: #eee;
+          position: fixed; top: 50px; right: 20px; width: 300px;
+          background: rgba(20, 20, 30, 0.95); color: #eee;
           border: 1px solid #444; border-radius: 8px;
-          padding: 12px; z-index: 10000; font-family: sans-serif;
-          box-shadow: 0 4px 10px rgba(0,0,0,0.5); backdrop-filter: blur(5px);
+          padding: 12px; z-index: 10000; font-family: 'Segoe UI', sans-serif;
+          box-shadow: 0 8px 20px rgba(0,0,0,0.6); backdrop-filter: blur(8px);
+          font-size: 13px;
       `;
 
     panel.innerHTML = `
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #555; padding-bottom:5px;">
-              <h3 style="margin:0; font-size:16px; color:#a8d0dc;">👻 GhostPixel Bot</h3>
-              <span style="font-size:12px; cursor:pointer;" onclick="this.parentElement.parentElement.remove()">✕</span>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #555; padding-bottom:8px;">
+              <h3 style="margin:0; font-size:16px; color:#a8d0dc; font-weight:bold;">👻 GhostPixel Bot <span style="font-size:10px; color:#666;">v0.4</span></h3>
+              <span style="font-size:16px; cursor:pointer; color:#888; font-weight:bold;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#888'" onclick="this.parentElement.parentElement.remove()">✕</span>
           </div>
           
-          <div id="ghost-status-line" style="margin-bottom:10px; font-size:14px; color:#ff595e;">
-              状态: 🔴 已停止
+          <div id="ghost-status-line" style="margin-bottom:12px; font-size:14px; font-weight:bold; color:#ff595e; display:flex; align-items:center; gap:5px;">
+              <span>🔴</span> <span>状态: 已停止</span>
           </div>
 
-          <div style="margin-bottom:10px; font-size:13px;">
-              <label title="等待能量达到此数值再一次性绘制">充能阈值 (1-${
-                typeof maxEnergy !== "undefined" ? maxEnergy : "Max"
-              }):</label>
-              <input type="number" id="energy-threshold-input" value="${
-                botConfig.energyThreshold
-              }" min="1" max="200" 
-                  style="width:50px; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:2px;">
+          <div style="display:flex; gap:10px; margin-bottom:10px;">
+             <div style="flex:1;">
+                <label style="display:block; margin-bottom:4px; color:#ccc;">运行模式:</label>
+                <select id="bot-mode-select" style="width:100%; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:4px;">
+                    <option value="build">🔨 建造模式</option>
+                    <option value="maintain">🛡️ 维护模式</option>
+                </select>
+             </div>
+             <div style="flex:0.6;">
+                <label style="display:block; margin-bottom:4px; color:#ccc;">充能阈值:</label>
+                <input type="number" id="energy-threshold-input" value="${botConfig.energyThreshold}" min="1" max="200" 
+                  style="width:100%; background:#333; color:white; border:1px solid #555; border-radius:4px; padding:4px;">
+             </div>
           </div>
 
-          <div style="display:flex; gap:5px; margin-bottom:10px;">
-              <button id="btn-start" style="flex:1; background:#1982c4; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer;">启动</button>
-              <button id="btn-stop" style="flex:1; background:#8b1d24; color:white; border:none; padding:6px; border-radius:4px; cursor:pointer;">停止</button>
+          <!-- 统计面板区域 -->
+          <div style="background:#1a1a24; padding:10px; border-radius:6px; border:1px solid #444; margin-bottom:12px;">
+             
+             <!-- 进度条 -->
+             <div style="margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                   <span style="color:#bbb;">进度</span>
+                   <span id="stats-progress-text" style="color:#1982c4; font-weight:bold;">0%</span>
+                </div>
+                <div style="height:6px; background:#333; border-radius:3px; overflow:hidden;">
+                   <div id="stats-progress-bar" style="width:0%; height:100%; background:#1982c4; transition: width 0.3s ease;"></div>
+                </div>
+             </div>
+
+             <!-- 像素统计 -->
+             <div style="display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;">
+                <span style="color:#bbb;">🖌️ 像素完成度</span>
+                <span id="stats-pixel-count" style="font-family:monospace; color:#eee;">- / -</span>
+             </div>
+
+             <!-- 维护统计 (仅维护模式显示) -->
+             <div id="maintain-stats" style="display:none; border-top:1px solid #333; padding-top:5px; margin-top:5px;">
+                <div style="display:flex; justify-content:space-between; font-size:12px;">
+                    <span style="color:#8ac926;">🛡️ 已修复总数</span>
+                    <span id="fix-count-display" style="font-family:monospace; color:#8ac926; font-weight:bold;">0</span>
+                </div>
+             </div>
+
           </div>
 
-          <div style="background:#111; height:120px; overflow-y:auto; font-size:11px; padding:5px; border-radius:4px; border:1px solid #444; color:#aaa;" id="ghost-log-area">
-              <div>[System] GUI 加载完成...</div>
+          <div style="display:flex; gap:8px;">
+              <button id="btn-start" style="flex:1; background:#1982c4; color:white; border:none; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold; transition:all 0.2s;">启动</button>
+              <button id="btn-stop" disabled style="flex:1; background:#444; color:#aaa; border:none; padding:8px; border-radius:4px; cursor:not-allowed; font-weight:bold; transition:all 0.2s;">停止</button>
           </div>
       `;
 
     document.body.appendChild(panel);
 
+    // 元素引用
+    const btnStart = document.getElementById("btn-start");
+    const btnStop = document.getElementById("btn-stop");
+    const modeSelect = document.getElementById("bot-mode-select");
+    const fixStats = document.getElementById("maintain-stats");
+    
+    const statsProgressText = document.getElementById("stats-progress-text");
+    const statsProgressBar = document.getElementById("stats-progress-bar");
+    const statsPixelCount = document.getElementById("stats-pixel-count");
+    const fixCountDisplay = document.getElementById("fix-count-display");
+
+    // 更新 UI 状态辅助
+    const setUiRunning = (running) => {
+        isRunning = running;
+        if (running) {
+            btnStart.disabled = true;
+            btnStart.style.background = "#444";
+            btnStart.style.color = "#aaa";
+            btnStart.style.cursor = "not-allowed";
+            
+            btnStop.disabled = false;
+            btnStop.style.background = "#8b1d24";
+            btnStop.style.color = "white";
+            btnStop.style.cursor = "pointer";
+            
+            modeSelect.disabled = true;
+        } else {
+            btnStart.disabled = false;
+            btnStart.style.background = "#1982c4";
+            btnStart.style.color = "white";
+            btnStart.style.cursor = "pointer";
+            
+            btnStop.disabled = true;
+            btnStop.style.background = "#444";
+            btnStop.style.color = "#aaa";
+            btnStop.style.cursor = "not-allowed";
+
+            modeSelect.disabled = false;
+        }
+    };
+
     // 绑定事件
-    document.getElementById("btn-start").onclick = () => {
+    btnStart.onclick = () => {
       if (usw.ghostBot) usw.ghostBot.start();
     };
-    document.getElementById("btn-stop").onclick = () => {
+    btnStop.onclick = () => {
       if (usw.ghostBot) usw.ghostBot.stop();
     };
+    
     document.getElementById("energy-threshold-input").onchange = (e) => {
       let val = parseInt(e.target.value);
       if (val < 1) val = 1;
       botConfig.energyThreshold = val;
       log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
     };
+
+    modeSelect.onchange = (e) => {
+        botConfig.mode = e.target.value;
+        if (botConfig.mode === 'maintain') {
+            fixStats.style.display = 'block';
+        } else {
+            fixStats.style.display = 'none';
+        }
+        log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
+    };
+
+    // 导出内部函数供外部调用更新
+    usw.ghostBotGui = {
+        setRunning: setUiRunning,
+        updateFixCount: (count) => {
+            if (fixCountDisplay) fixCountDisplay.innerText = count;
+        },
+        updateProgress: (total, remaining) => {
+            if (!statsPixelCount) return;
+            const placed = total - remaining;
+            const pct = total > 0 ? ((placed / total) * 100).toFixed(1) : "0.0";
+            
+            statsPixelCount.innerText = `${placed} / ${total}`;
+            statsProgressText.innerText = `${pct}%`;
+            statsProgressBar.style.width = `${pct}%`;
+            
+            if (pct === "100.0") {
+                statsProgressText.style.color = "#ffca3a";
+                statsProgressBar.style.background = "#ffca3a";
+            } else {
+                statsProgressText.style.color = "#1982c4";
+                statsProgressBar.style.background = "#1982c4";
+            }
+        }
+    };
   }
 
-  // 更新 GUI 状态的辅助函数
-  function updateGuiStatus(status, color = "white") {
+  // 更新 GUI 状态文字
+  function updateGuiStatus(status, color = "white", icon = "ℹ️") {
     const el = document.getElementById("ghost-status-line");
     if (el) {
-      el.innerHTML = `状态: ${status}`;
-      el.style.color = color;
+      el.innerHTML = `<span>${icon}</span> <span style="color:${color}">${status}</span>`;
     }
   }
 
@@ -262,7 +361,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   const tryRelog = withErrorHandling(async () => {
     tokenUser = "";
 
-    log(LOG_LEVELS.info, "attempting AutoLogin");
+    log(LOG_LEVELS.info, "Attempting AutoLogin...");
     await usw.tryAutoLogin();
 
     if (!tokenUser.length) {
@@ -371,9 +470,10 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
 
   const getPixelsToPlace = () => {
     if (!ghostPixelData) setGhostPixelData();
-    log(LOG_LEVELS.debug, "Filtering pixels with pre-computed tile data...");
-
-    // IMPORTANT: We no longer clear the tilePixelCache here, to keep it "warm".
+    // log(LOG_LEVELS.debug, "Scanning canvas..."); // Reduce spam
+    
+    // 修复：每次扫描前清空缓存，强制从 synchronize() 后的新位图读取数据以便于多人协作
+    tilePixelCache.clear(); 
 
     if (
       typeof tileImageCache === "undefined" ||
@@ -405,10 +505,7 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
         pixelsToPlace.push(p);
       }
     }
-    log(
-      LOG_LEVELS.info,
-      `Calculation complete. Found ${pixelsToPlace.length} pixels to place.`
-    );
+    
     return orderGhostPixels(pixelsToPlace);
   };
 
@@ -426,8 +523,26 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     if (!r.ok) {
       log(LOG_LEVELS.warn, "Failed to place pixels: " + (await r.text()));
       if (r.status == 401 && (await tryRelog())) await sendPixels(pixels);
-    } else log(LOG_LEVELS.info, `Placed ${pixels.length} pixels!`);
+      return false;
+    } else {
+        log(LOG_LEVELS.info, `Placed ${pixels.length} pixels.`);
+        return true;
+    }
   });
+
+  // 带 GUI 进度更新的等待函数
+  const waitWithCountdown = async (seconds, targetEnergy) => {
+    let remaining = Math.ceil(seconds);
+    while (remaining > 0) {
+        if (stopWhileLoop) break;
+        
+        const energyStatus = `(${currentEnergy}/${targetEnergy})`;
+        updateGuiStatus(`充能中... ${energyStatus} - ${remaining}s`, "#1982c4", "⏳");
+        
+        await new Promise(r => setTimeout(r, 1000));
+        remaining--;
+    }
+  };
 
   let stopWhileLoop = false;
   let promiseResolve;
@@ -435,51 +550,74 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   const startGhostBot = withErrorHandling(async () => {
     if (!ghostImage || !ghostImageOriginalData || !ghostImageTopLeft) {
       log(LOG_LEVELS.warn, "Ghost image not loaded.");
-      updateGuiStatus("❌ Ghost 图未加载", "red");
+      updateGuiStatus("Ghost 图未加载", "red", "❌");
       return;
     }
 
-    log(LOG_LEVELS.info, "Starting Ghost Bot...");
-    updateGuiStatus("🟢 运行中", "#8ac926");
-
+    if (isRunning) return; // Prevent double start
+    
+    log(LOG_LEVELS.info, `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`);
+    usw.ghostBotGui.setRunning(true);
     stopWhileLoop = false;
+
+    // 只有开始时重置计数器，除非是继续维护
+    if (botConfig.mode === 'maintain' && fixCounter === 0) {
+        usw.ghostBotGui.updateFixCount(0);
+    }
+
     while (!stopWhileLoop) {
       isPageVisible = true;
-      log(LOG_LEVELS.info, "Synchronizing with the server...");
+      // log(LOG_LEVELS.debug, "Syncing...");
       await synchronize("full");
 
       const pixelsToPlace = getPixelsToPlace();
       const totalPixelsInTemplate = ghostPixelData.length;
 
+      // 更新统计数据
+      usw.ghostBotGui.updateProgress(totalPixelsInTemplate, pixelsToPlace.length);
+
       if (pixelsToPlace.length === 0) {
-        log(LOG_LEVELS.info, `All pixels are correctly placed.`);
-        updateGuiStatus("✨ 已完成", "#ffca3a");
-        break;
-      }
-
-      // 能量逻辑
-      const userThreshold = Math.min(botConfig.energyThreshold, maxEnergy);
-      const pixelsNeeded = pixelsToPlace.length;
-      let shouldWait = false;
-
-      if (pixelsNeeded >= userThreshold) {
-        if (currentEnergy < userThreshold) {
-          shouldWait = true;
+        if (botConfig.mode === 'build') {
+            // 建造模式：任务完成，停止
+            log(LOG_LEVELS.success, `Build Complete! All pixels match.`);
+            updateGuiStatus("画作已完成！", "#ffca3a", "✨");
+            usw.ghostBot.stop();
+            alert("GhostPixel Bot: 建造完成！");
+            break;
+        } else {
+            // 维护模式：等待并重试
+            updateGuiStatus("监控中... 画面完美", "#8ac926", "🛡️");
+            await new Promise(r => setTimeout(r, 5000)); 
+            continue;
         }
       }
-      if (!shouldWait && currentEnergy > 0) {
-        const pixelsThisRequest = pixelsToPlace.slice(0, currentEnergy);
-        const pixelsAfterThisRequest =
-          totalPixelsInTemplate -
-          pixelsToPlace.length +
-          pixelsThisRequest.length;
+      
+      // 在维护模式下，阈值强制设为 1，确保发现错误立刻修补
+      const userThreshold = botConfig.mode === 'maintain' ? 1 : Math.min(botConfig.energyThreshold, maxEnergy);
+      
+      // 检查是否有足够能量进行操作
+      let shouldAct = false;
+      
+      if (botConfig.mode === 'maintain') {
+          shouldAct = currentEnergy > 0;
+      } else {
+          // Build mode
+          if (pixelsToPlace.length >= userThreshold) {
+              shouldAct = currentEnergy >= userThreshold;
+          } else {
+              // 剩余像素少于阈值，有多少发多少
+              shouldAct = currentEnergy >= pixelsToPlace.length || currentEnergy === maxEnergy;
+          }
+      }
 
-        log(
-          LOG_LEVELS.info,
-          `Placing ${pixelsThisRequest.length} pixels (${pixelsAfterThisRequest}/${totalPixelsInTemplate})...`
-        );
+      if (shouldAct) {
+        // 决定这次发多少
+        const countToSend = Math.min(currentEnergy, pixelsToPlace.length);
+        const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
 
-        await sendPixels(
+        updateGuiStatus(`正在绘制 ${pixelsThisRequest.length} 个点...`, "#A8D0DC", "🖌️");
+
+        const success = await sendPixels(
           pixelsThisRequest.map((d) => ({
             GridX: d.gridCoord.x,
             GridY: d.gridCoord.y,
@@ -488,58 +626,52 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
         );
 
         if (!tokenUser) {
-          log(LOG_LEVELS.warn, "logged out => stopping the bot");
-          updateGuiStatus("⚠️ 已登出", "orange");
+          log(LOG_LEVELS.warn, "Logged out => stopping.");
+          updateGuiStatus("已登出", "orange", "⚠️");
+          usw.ghostBot.stop();
           break;
         }
 
-        // 绘制后重新计算剩余像素
-        const remainingAfterSend = getPixelsToPlace();
-        if (remainingAfterSend.length === 0) {
-          log(LOG_LEVELS.info, `All pixels are now correctly placed.`);
-          updateGuiStatus("✨ 已完成", "#ffca3a");
-          break;
+        if (success) {
+             // 绘制成功后，立即更新一次统计显示（减少滞后感）
+             const estimatedRemaining = pixelsToPlace.length - pixelsThisRequest.length;
+             usw.ghostBotGui.updateProgress(totalPixelsInTemplate, estimatedRemaining);
+
+             if (botConfig.mode === 'maintain') {
+                fixCounter += pixelsThisRequest.length;
+                usw.ghostBotGui.updateFixCount(fixCounter);
+                log(LOG_LEVELS.success, `Fixed ${pixelsThisRequest.length} pixel(s). Total fixed: ${fixCounter}`);
+             }
         }
       }
 
-      // 计算下一次等待时间
-      // 目标能量：如果是“等待模式”，目标就是阈值；否则目标是尽可能多，但要受限于 maxEnergy
-      const targetEnergyCalc = Math.min(
-        maxEnergy,
-        pixelsToPlace.length,
-        userThreshold
-      );
-      const energyNeeded = targetEnergyCalc - currentEnergy;
-
-      // 如果 energyNeeded <= 0，说明当前能量已经达标（或者刚画完清零了需要回满），
-      // 但由于 while 循环，如果刚画完，currentEnergy 变小了，energyNeeded 就会变大。
-      // 修正：这里我们直接计算要 sleep 多久才能达到 userThreshold
+      
+      let targetEnergyVal = 0;
+      
+      if (botConfig.mode === 'maintain') {
+          targetEnergyVal = 1;
+      } else {
+           const remainingPixels = Math.max(0, pixelsToPlace.length - currentEnergy); // 粗略估计
+           targetEnergyVal = Math.min(maxEnergy, botConfig.energyThreshold);
+           if (remainingPixels > 0 && remainingPixels < targetEnergyVal) {
+               targetEnergyVal = remainingPixels;
+           }
+      }
 
       let waitSeconds = 0;
-      if (currentEnergy < userThreshold) {
-        waitSeconds = (userThreshold - currentEnergy) * energyRate;
+      if (currentEnergy < targetEnergyVal) {
+        waitSeconds = (targetEnergyVal - currentEnergy) * (typeof energyRate !== 'undefined' ? energyRate : 10);
+      } else {
+          waitSeconds = 1; 
       }
+      
+      waitSeconds += 0.5; 
 
-      // 确保至少有最小等待时间，防止死循环请求
-      if (waitSeconds <= 0) waitSeconds = 2;
-
-      log(
-        LOG_LEVELS.info,
-        `Waiting for energy... Target: ${userThreshold} (Need ${waitSeconds.toFixed(
-          1
-        )}s)`
-      );
-
-      updateGuiStatus(
-        `⏳ 充能中... (${currentEnergy}/${userThreshold})`,
-        "#1982c4"
-      );
-
-      await new Promise((resolve) => {
-        promiseResolve = resolve;
-        setTimeout(resolve, waitSeconds * 1000);
-      });
+      await waitWithCountdown(waitSeconds, targetEnergyVal);
     }
+    
+    // 循环结束（手动停止）
+    usw.ghostBotGui.setRunning(false);
   });
 
   usw.ghostBot = {
@@ -555,8 +687,9 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     stop: () => {
       stopWhileLoop = true;
       promiseResolve?.();
-      log(LOG_LEVELS.info, "Ghost bot stopped.");
-      updateGuiStatus("🔴 已停止", "#ff595e");
+      log(LOG_LEVELS.info, "Stopping bot command received.");
+      updateGuiStatus("已停止", "#ff595e", "🔴");
+      usw.ghostBotGui.setRunning(false);
     },
     reload: () => setGhostPixelData(),
     // 暴露配置给控制台调试用
@@ -566,5 +699,5 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   // 初始化 GUI
   setTimeout(createGUI, 1500); // 稍微延迟一点加载 GUI，确保页面元素就绪
 
-  log(LOG_LEVELS.info, "GhostPixel Bot GUI loaded.");
+  log(LOG_LEVELS.info, "GhostPixel Bot v0.4 Loaded.");
 })();
