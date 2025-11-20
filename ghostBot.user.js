@@ -177,7 +177,7 @@ function el(tag, options = {}, children = []) {
 // Logic Helpers
 function shouldBotAct(mode, currentEnergy, pixelsCount, threshold, maxEnergy) {
   if (mode === 'maintain') {
-      return currentEnergy > 0;
+      return currentEnergy > 0 && pixelsCount > 0;
   }
   
   const userThreshold = Math.min(threshold, maxEnergy);
