@@ -814,10 +814,13 @@ const GUI_HTML = `
       }
 
       const safeEnergy = getCurrentEnergy();
-      // 修复：明确获取 maxEnergy，防止因全局变量访问问题导致的 NaN 或闪烁
-      // 如果无法读取，默认设为 10 (游戏标准值)
-      const safeMaxEnergy =
-        typeof usw.maxEnergy !== "undefined" ? usw.maxEnergy : 10;
+
+      let safeMaxEnergy = 10;
+      if (typeof usw.maxEnergy !== "undefined") {
+        safeMaxEnergy = usw.maxEnergy;
+      } else if (typeof maxEnergy !== "undefined") {
+        safeMaxEnergy = maxEnergy;
+      }
 
       // Energy initialization safeguard
       if (typeof window.energyWaitStart === "undefined")
