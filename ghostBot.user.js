@@ -814,14 +814,16 @@ const GUI_HTML = `
       }
 
       const safeEnergy = getCurrentEnergy();
+      // 修复：明确获取 maxEnergy，防止因全局变量访问问题导致的 NaN 或闪烁
+      // 如果无法读取，默认设为 10 (游戏标准值)
+      const safeMaxEnergy =
+        typeof usw.maxEnergy !== "undefined" ? usw.maxEnergy : 10;
 
-      // Energy initialization safeguard (1 min timeout to prevent infinite loop if energy variable is stuck)
+      // Energy initialization safeguard
       if (typeof window.energyWaitStart === "undefined")
         window.energyWaitStart = Date.now();
       if (safeEnergy === 0 && Date.now() - window.energyWaitStart > 60000) {
         log(LOG_LEVELS.error, "Energy initialization timed out.");
-        // Not throwing error to keep script alive, but maybe stop loop?
-        // For now just reset wait start to retry
         window.energyWaitStart = Date.now();
       }
       if (safeEnergy > 0) window.energyWaitStart = undefined;
@@ -831,7 +833,7 @@ const GUI_HTML = `
         currentEnergy: safeEnergy,
         pixelCount: pixelsToPlace.length,
         threshold: botConfig.energyThreshold,
-        maxEnergy,
+        maxEnergy: safeMaxEnergy, // 使用获取到的安全值
       });
 
       if (shouldAct) {
