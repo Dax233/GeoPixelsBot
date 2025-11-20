@@ -464,13 +464,44 @@ const GUI_HTML = `
         const winWidth = window.innerWidth;
         const winHeight = window.innerHeight;
 
+        // If panel is larger than window, resize panel to fit
+        let panelWidth = rect.width;
+        let panelHeight = rect.height;
+        let resized = false;
+
+        if (panelWidth > winWidth) {
+            panelWidth = winWidth;
+            panel.style.width = `${panelWidth}px`;
+            resized = true;
+        }
+        if (panelHeight > winHeight) {
+            panelHeight = winHeight;
+            panel.style.height = `${panelHeight}px`;
+            resized = true;
+        }
+
+        // Recalculate rect if resized
+        if (resized) {
+            const newRect = panel.getBoundingClientRect();
+            panelWidth = newRect.width;
+            panelHeight = newRect.height;
+        }
+
         // Clamp left
-        if (newLeft < 0) newLeft = 0;
-        if (newLeft + rect.width > winWidth) newLeft = winWidth - rect.width;
+        if (panelWidth >= winWidth) {
+            newLeft = 0;
+        } else {
+            if (newLeft < 0) newLeft = 0;
+            if (newLeft + panelWidth > winWidth) newLeft = winWidth - panelWidth;
+        }
 
         // Clamp top
-        if (newTop < 0) newTop = 0;
-        if (newTop + rect.height > winHeight) newTop = winHeight - rect.height;
+        if (panelHeight >= winHeight) {
+            newTop = 0;
+        } else {
+            if (newTop < 0) newTop = 0;
+            if (newTop + panelHeight > winHeight) newTop = winHeight - panelHeight;
+        }
 
         panel.style.left = `${newLeft}px`;
         panel.style.top = `${newTop}px`;
