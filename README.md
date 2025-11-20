@@ -1,26 +1,85 @@
-# GeoPixelsBot
-A bot for automatic ghost placement on the website https://geopixels.net
+# GhostPixel Bot (Dax233's Fork) 👻
 
-## installation
-1. install [Violentmonkey](https://violentmonkey.github.io/) ([![Firefox Addons](https://www.readmecodegen.com/api/social-icon?name=firefoxbrowser&size=16)](https://addons.mozilla.org/en-US/firefox/addon/violentmonkey/)/[![Chrome webstore](https://www.readmecodegen.com/api/social-icon?name=chromewebstore&size=16)](https://chromewebstore.google.com/detail/jinjaccalgkegednnccohejagnlnfdag)) or [Tampermonkey](https://www.tampermonkey.net/) ([![Firefox Addons](https://www.readmecodegen.com/api/social-icon?name=firefoxbrowser&size=16)](https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/)/[![Chrome webstore](https://www.readmecodegen.com/api/social-icon?name=chromewebstore&size=16)](https://chromewebstore.google.com/detail/dhdgffkkebhmkfjojejmpbldmpobfkfo))
-2. [click here](https://github.com/nymtuta/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js)
+A powerful, GUI-enhanced bot for automatic ghost placement on [geopixels.net](https://geopixels.net).
 
-## Usage
-- leave your view in the middle of your ghost image (this is important or it will place pixels at the same place multiple times) (will be fixed later)
-- Commands: 
-  - `ghostBot.start()` : start the bot
-  - `ghostBot.stop()` : stop the bot
-  - `ghostBot.reload()` : reloads ghost data (needed after any configuration change or after buying a new color)
-  - `ghostBot.ignoreColors()` : add colors to the ignored list (input can be an array or a string with colors separated by `,` or by the second argument specified)
-- Settings *(has to be set after each page reload)*: 
-  - `ghostBot.placeTransparentGhostPixels` *`[boolean]`* : place transparent pixels *(default: false)*
-  - `ghostBot.placeFreeColors` *`[boolean]`* : place free colors *(default: true)*
+> **Note:** This is a heavily modified fork of the [original bot by nymtuta](https://github.com/nymtuta/GeoPixelsBot). This version focuses on ease of use, automation, and maintenance capabilities.
 
-## Upcoming changes
-See [CHANGELOG.md#unreleased-todo](CHANGELOG.md#unreleased-todo)
+## ✨ Key Features
 
-## Change log
-See [CHANGELOG.md](CHANGELOG.md)
+Unlike the original script, this fork provides a full graphical interface and advanced logic:
 
-## License
-This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE.md) file for details.
+- **🖥️ Graphical User Interface (GUI):** No more typing commands in the console! Control everything from a sleek, draggable panel directly on the screen.
+- **🔨 Build Mode:** Automatically places pixels to complete your ghost image. Stops and sends a notification when the artwork is finished.
+- **🛡️ Maintain Mode:** After building, switch to this mode. It monitors your artwork indefinitely and instantly repairs any pixels that get griefed or covered.
+- **⚡ Smart Energy Management:** Configurable energy threshold. The bot waits efficiently and acts immediately when energy is ready.
+- **🌙 Background Running:** Optimized to run in background tabs without throttling, perfect for AFK farming.
+- **📊 Real-time Stats:** Visual progress bars, pixel counts, and repair statistics (in Maintain mode).
+
+## ✅ Project Status
+
+### Completed Features
+- [x] **GUI Panel:** Complete control panel with status indicators.
+- [x] **Dual Modes:** Implemented `Build` and `Maintain` logic.
+- [x] **Energy Optimization:** Smart waiting logic to prevent API spam and maximize efficiency.
+- [x] **Non-blocking Notifications:** Replaced annoying alerts with smooth toast notifications.
+- [x] **Background Execution:** Works even when the tab is not active.
+
+### 🗺️ Roadmap (Planned)
+We are actively working on the following features. Feel free to contribute!
+
+- [ ] **Advanced GUI Settings:**
+    - Toggle "Place Transparent Pixels" via UI.
+    - Toggle "Place Free Colors" via UI.
+    - Manage "Ignored Colors" list visually.
+- [ ] **Multi-Account Support:** Quickly switch between different user tokens/accounts for managing multiple bots.
+- [ ] **Viewport Independence:** (Original Author's Plan) Fix the limitation where the camera must be centered on the ghost image.
+- [ ] **Audio Alerts:** Optional sound notification when a build is complete.
+
+## 📥 Installation
+
+1. **Install a UserScript Manager:**
+   - [Violentmonkey](https://violentmonkey.github.io/) (Recommended)
+   - [Tampermonkey](https://www.tampermonkey.net/)
+
+2. **Install the Script:**
+   - [**Click Here to Install**](https://github.com/Dax233/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js)
+
+## 🎮 Usage
+
+Once installed, refresh the GeoPixels game page. You will see the **GhostPixel Bot Panel** on the right side of the screen.
+
+### The Control Panel
+
+1.  **Load your Ghost:** Make sure your Ghost image is loaded in the game as usual.
+2.  **Select Mode:**
+    * `🔨 Build Mode`: Default. Fills in the missing pixels.
+    * `🛡️ Maintain Mode`: Use this for finished art. It will watch for changes and fix them.
+3.  **Energy Threshold:** Set how much energy to accumulate before placing a batch (Default: 10).
+4.  **Start/Stop:** Click the buttons to control the bot.
+
+> **Tip:** You can leave the tab in the background. The bot handles visibility states and will continue working.
+
+### Advanced / Legacy Console Commands
+
+While the GUI covers most needs, the internal API is still accessible via the browser console (`F12`) if you need granular control:
+
+- `ghostBot.ignoreColors(['#hex1', '#hex2'])` : Add colors to the ignore list.
+- `ghostBot.config` : View current configuration object.
+
+## ⚙️ Configuration
+
+Most settings are now adjustable directly in the GUI:
+
+- **Place Transparent Pixels:** (Internal setting, defaults to `false`)
+- **Place Free Colors:** (Internal setting, defaults to `true`)
+
+## 🤝 Contributing
+
+Feel free to open issues or submit pull requests if you find bugs or have ideas for new features.
+
+## 📜 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+---
+*Original work by nymtuta. Enhanced with ❤️ by Dax233.*
