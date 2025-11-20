@@ -207,13 +207,14 @@ function calculateWaitTime(mode, currentEnergy, pixelsCount, threshold, maxEnerg
        targetEnergyVal = Math.max(1, t);
   }
 
-  if (currentEnergy < targetEnergyVal) {
-      // rate default to 10s if undefined
-      const r = (typeof rate !== 'undefined' ? rate : 10);
-      return (targetEnergyVal - currentEnergy) * r;
+  // Optimization: Return 0 if no wait is needed (enough energy)
+  if (currentEnergy >= targetEnergyVal) {
+      return 0;
   }
-  
-  return 1; // minimal wait
+
+  // rate default to 10s if undefined
+  const r = (typeof rate !== 'undefined' ? rate : 10);
+  return (targetEnergyVal - currentEnergy) * r;
 }
 
 // Styles
