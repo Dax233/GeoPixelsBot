@@ -727,7 +727,7 @@ const GUI_HTML = `
   });
 
   // 直接获取安全整数能量值
-  const getCurrentEnergy = () => usw.currentEnergy >>> 0;
+  const getCurrentEnergy = () => Math.max(0, Number(usw.currentEnergy) || 0);
 
   // 固定间隔轮询
   const pollForEnergy = async (targetEnergy, checkStop) => {
