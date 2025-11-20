@@ -276,6 +276,19 @@ const GUI_STYLES = `
   
   .gb-btn-stop { background:#8b1d24; color:white; }
   .gb-btn-stop:disabled { background:#444; color:#aaa; cursor:not-allowed; }
+
+  .gb-notification {
+      position: fixed; bottom: 30px; right: 30px;
+      background: #ffca3a; color: #222;
+      padding: 16px 24px; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      font-size: 1.1em; font-weight: bold; font-family: 'Segoe UI', sans-serif;
+      z-index: 10001; animation: gb-slide-up 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  @keyframes gb-slide-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+  }
 `;
 //#endregion
 
@@ -396,6 +409,22 @@ const GUI_STYLES = `
           }
           log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
       };
+  };
+
+  // Notification Helper
+  const showCompletionNotification = (message) => {
+      const notification = el('div', {
+          className: 'gb-notification',
+          innerText: message
+      });
+      document.body.appendChild(notification);
+
+      // Remove after 4 seconds
+      setTimeout(() => {
+          notification.style.transition = "opacity 0.5s";
+          notification.style.opacity = "0";
+          setTimeout(() => notification.remove(), 500);
+      }, 4000);
   };
 
   // 创建 GUI
@@ -726,7 +755,8 @@ const GUI_STYLES = `
             log(LOG_LEVELS.success, `Build Complete! All pixels match.`);
             updateGuiStatus("画作已完成！", "#ffca3a", "✨");
             usw.ghostBot.stop();
-            alert("GhostPixel Bot: 建造完成！");
+            // Replace alert with non-blocking notification
+            showCompletionNotification("GhostPixel Bot: 建造完成！");
             break;
         } else {
             // 维护模式：等待并重试
