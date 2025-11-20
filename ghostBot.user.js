@@ -599,16 +599,16 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
       let shouldAct = false;
       
       if (botConfig.mode === 'maintain') {
-          shouldAct = currentEnergy > 0;
-      } else {
-          // Build mode
-          if (pixelsToPlace.length >= userThreshold) {
-              shouldAct = currentEnergy >= userThreshold;
-          } else {
-              // 剩余像素少于阈值，有多少发多少
-              shouldAct = currentEnergy >= pixelsToPlace.length || currentEnergy === maxEnergy;
-          }
-      }
+                shouldAct = currentEnergy > 0;
+            }
+      else if (pixelsToPlace.length >= userThreshold) {
+                    shouldAct = currentEnergy >= userThreshold;
+                }
+      else {
+                    // 剩余像素少于阈值，有多少发多少
+                    shouldAct = currentEnergy >= pixelsToPlace.length || currentEnergy === maxEnergy;
+                }
+
 
       if (shouldAct) {
         // 决定这次发多少
