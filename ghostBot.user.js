@@ -669,7 +669,9 @@ const GUI_STYLES = `
   const waitWithCountdown = async (seconds, targetEnergy) => {
     let remaining = Math.ceil(seconds);
     while (remaining > 0) {
-        if (stopWhileLoop) break;
+        // 检查停止标志 (stopWhileLoop) 或者 isRunning 状态
+        // 如果用户想后台运行，我们不检查 document.visibilityState，这确保了后台挂机的能力
+        if (stopWhileLoop || !isRunning) break; 
         
         // 尝试从 unsafeWindow 更新 energy (解决审阅意见)
         // 如果无法从 unsafeWindow 获取，则回退到全局变量 currentEnergy
