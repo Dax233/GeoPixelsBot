@@ -183,7 +183,7 @@ const GUI_STYLES = `
       padding: 12px; z-index: 10000; font-family: 'Segoe UI', sans-serif;
       box-shadow: 0 8px 20px rgba(0,0,0,0.6); backdrop-filter: blur(8px);
       font-size: 13px;
-      transition: height 0.3s ease;
+      transition: height 0.3s ease, width 0.3s ease, padding 0.3s ease;
   }
   
   /* Minimized State Styles */
