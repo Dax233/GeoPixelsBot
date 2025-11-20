@@ -697,7 +697,11 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
   };
 
   // 初始化 GUI
-  setTimeout(createGUI, 1500); // 稍微延迟一点加载 GUI，确保页面元素就绪
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", createGUI);
+  } else {
+    createGUI();
+  }
 
   log(LOG_LEVELS.info, "GhostPixel Bot v0.4 Loaded.");
 })();
