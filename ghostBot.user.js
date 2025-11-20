@@ -165,8 +165,11 @@ function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy})
       if (pixelCount > 0) target = Math.max(1, target);
   }
 
+  // Safe check for undefined energy
+  const safeEnergy = (typeof currentEnergy === 'number' && !isNaN(currentEnergy)) ? currentEnergy : 0;
+
   // Should act immediately if we have enough energy AND there are pixels to place
-  const shouldAct = currentEnergy >= target && pixelCount > 0;
+  const shouldAct = safeEnergy >= target && pixelCount > 0;
 
   return {
     shouldAct,
@@ -341,8 +344,7 @@ const GUI_HTML = `
   let isRunning = false;
   let fixCounter = 0;
   
-  // Cache for review fixes
-  let lastKnownEnergy = 0; 
+  let lastKnownEnergy = undefined; 
   let lastCachedProgress = { total: 0, remaining: 0, pct: "0.0" };
 
   // GUI 配置对象
@@ -367,7 +369,100 @@ const GUI_HTML = `
       }, 4000);
   };
 
-  // 创建 GUI - 重构为静态模板 + DOM 赋值
+  // Utility: Make an element draggable with boundary checks
+  function makeDraggable(handleEl, panelEl) {
+      let isDragging = false;
+      let startX, startY, initialLeft, initialTop;
+
+      // Helper to keep panel within window bounds
+      const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
+
+      const onMouseMove = (e) => {
+          if (!isDragging) return;
+          const dx = e.clientX - startX;
+          const dy = e.clientY - startY;
+          
+          const rect = panelEl.getBoundingClientRect();
+          const winWidth = window.innerWidth;
+          const winHeight = window.innerHeight;
+
+          const newLeft = clamp(initialLeft + dx, 0, winWidth - rect.width);
+          const newTop = clamp(initialTop + dy, 0, winHeight - rect.height);
+
+          panelEl.style.left = `${newLeft}px`;
+          panelEl.style.top = `${newTop}px`;
+      };
+
+      const onMouseUp = () => {
+          isDragging = false;
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+      };
+
+      handleEl.addEventListener('mousedown', (e) => {
+          // Ignore if clicking controls
+          if(e.target.closest('.gb-window-ctrls')) return;
+          
+          isDragging = true;
+          startX = e.clientX;
+          startY = e.clientY;
+          
+          const rect = panelEl.getBoundingClientRect();
+          initialLeft = rect.left;
+          initialTop = rect.top;
+          
+          // Switch to absolute positioning
+          panelEl.style.right = 'auto';
+          panelEl.style.bottom = 'auto';
+          panelEl.style.left = `${initialLeft}px`;
+          panelEl.style.top = `${initialTop}px`;
+          
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+          e.preventDefault();
+      });
+      
+      // Handle Window Resize (Keep panel on screen)
+      window.addEventListener('resize', () => {
+           const rect = panelEl.getBoundingClientRect();
+           const winWidth = window.innerWidth;
+           const winHeight = window.innerHeight;
+           
+           let newLeft = rect.left;
+           let newTop = rect.top;
+           let changed = false;
+
+           if (newLeft + rect.width > winWidth) { newLeft = winWidth - rect.width; changed = true; }
+           if (newTop + rect.height > winHeight) { newTop = winHeight - rect.height; changed = true; }
+           if (newLeft < 0) { newLeft = 0; changed = true; }
+           if (newTop < 0) { newTop = 0; changed = true; }
+
+           if (changed) {
+               panelEl.style.left = `${newLeft}px`;
+               panelEl.style.top = `${newTop}px`;
+           }
+      });
+  }
+
+  // Utility: Setup minimize and close buttons
+  function setupWindowControls(panelEl) {
+      const closeBtn = panelEl.querySelector('.gb-close');
+      const minBtn = panelEl.querySelector('.gb-min-btn');
+
+      if (closeBtn) {
+          closeBtn.addEventListener('click', () => panelEl.remove());
+      }
+
+      if (minBtn) {
+          minBtn.addEventListener('click', () => {
+              panelEl.classList.toggle('gb-minimized');
+              const isMin = panelEl.classList.contains('gb-minimized');
+              minBtn.innerText = isMin ? '□' : '_';
+          });
+      }
+  }
+
+  // 创建 GUI
   const createGUI = () => {
     // Guard against duplicate panels
     if (document.getElementById('ghostBot-gui-panel')) return;
@@ -382,7 +477,7 @@ const GUI_HTML = `
     wrapper.innerHTML = GUI_HTML;
     const panel = wrapper.firstElementChild;
     
-    // 3. 安全地设置动态值 (防止 XSS)
+    // 3. 安全地设置动态值
     const thresholdInput = panel.querySelector('#energy-threshold-input');
     if (thresholdInput) {
         thresholdInput.value = botConfig.energyThreshold;
@@ -390,140 +485,15 @@ const GUI_HTML = `
 
     document.body.appendChild(panel);
 
+    // 4. 应用新的辅助函数
     const header = panel.querySelector('.gb-header');
-    let isDragging = false;
-    let startX, startY, initialLeft, initialTop;
+    makeDraggable(header, panel);
+    setupWindowControls(panel);
 
-    // 保证面板在窗口内可见
-    function ensurePanelInView() {
-        const rect = panel.getBoundingClientRect();
-        let left = rect.left;
-        let top = rect.top;
-        let changed = false;
-
-        if (left < 0) {
-            left = 0;
-            changed = true;
-        } else if (left + rect.width > window.innerWidth) {
-            left = window.innerWidth - rect.width;
-            changed = true;
-        }
-        if (top < 0) {
-            top = 0;
-            changed = true;
-        } else if (top + rect.height > window.innerHeight) {
-            top = window.innerHeight - rect.height;
-            changed = true;
-        }
-        if (changed) {
-            panel.style.left = `${left}px`;
-            panel.style.top = `${top}px`;
-        }
-    }
-
-    window.addEventListener('resize', ensurePanelInView);
-
-    // 鼠标按下事件
-    header.addEventListener('mousedown', (e) => {
-        // 如果点击的是按钮，则不触发拖拽
-        if(e.target.classList.contains('gb-close') || e.target.classList.contains('gb-min-btn')) return;
-        
-        isDragging = true;
-        startX = e.clientX;
-        startY = e.clientY;
-        
-        // 获取当前面板的位置
-        const rect = panel.getBoundingClientRect();
-        initialLeft = rect.left;
-        initialTop = rect.top;
-        
-        // 将定位方式从 right/bottom 等改为绝对的 left/top，防止跳动
-        panel.style.right = 'auto';
-        panel.style.bottom = 'auto';
-        panel.style.left = `${initialLeft}px`;
-        panel.style.top = `${initialTop}px`;
-        
-        // 在 document 上监听移动，防止鼠标移出面板范围失效
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-        
-        // 防止选中文本
-        e.preventDefault();
-    });
-
-    const onMouseMove = (e) => {
-        if (!isDragging) return;
-        const dx = e.clientX - startX;
-        const dy = e.clientY - startY;
-        
-        let newLeft = initialLeft + dx;
-        let newTop = initialTop + dy;
-
-        // Boundary Check: Prevent dragging off-screen
-        const rect = panel.getBoundingClientRect();
-        const winWidth = window.innerWidth;
-        const winHeight = window.innerHeight;
-
-        // If panel is larger than window, resize panel to fit
-        let panelWidth = rect.width;
-        let panelHeight = rect.height;
-        let resized = false;
-
-        if (panelWidth > winWidth) {
-            panelWidth = winWidth;
-            panel.style.width = `${panelWidth}px`;
-            resized = true;
-        }
-        if (panelHeight > winHeight) {
-            panelHeight = winHeight;
-            panel.style.height = `${panelHeight}px`;
-            resized = true;
-        }
-
-        // Recalculate rect if resized
-        if (resized) {
-            const newRect = panel.getBoundingClientRect();
-            panelWidth = newRect.width;
-            panelHeight = newRect.height;
-        }
-
-        // Clamp left
-        if (panelWidth >= winWidth) {
-            newLeft = 0;
-        } else {
-            if (newLeft < 0) newLeft = 0;
-            if (newLeft + panelWidth > winWidth) newLeft = winWidth - panelWidth;
-        }
-
-        // Clamp top
-        if (panelHeight >= winHeight) {
-            newTop = 0;
-        } else {
-            if (newTop < 0) newTop = 0;
-            if (newTop + panelHeight > winHeight) newTop = winHeight - panelHeight;
-        }
-
-        panel.style.left = `${newLeft}px`;
-        panel.style.top = `${newTop}px`;
-    }
-
-    const onMouseUp = () => {
-        isDragging = false;
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-    }
-
+    // 5. 事件委托 (Controls)
     panel.addEventListener('click', e => {
         if (e.target.id === 'btn-start') if(usw.ghostBot) usw.ghostBot.start();
         if (e.target.id === 'btn-stop') if(usw.ghostBot) usw.ghostBot.stop();
-        if (e.target.classList.contains('gb-close')) panel.remove();
-        
-        // 最小化逻辑
-        if (e.target.classList.contains('gb-min-btn')) {
-            panel.classList.toggle('gb-minimized');
-            const isMin = panel.classList.contains('gb-minimized');
-            e.target.innerText = isMin ? '□' : '_'; // 切换图标
-        }
     });
 
     panel.addEventListener('change', e => {
@@ -576,8 +546,6 @@ const GUI_HTML = `
             
             // Caching Mechanism: Prevent flickering when total is briefly 0
             if (total === 0) {
-                // If we have cached data, don't update to 0/0 unless we really mean it (e.g., initialization)
-                // But if cached total was > 0, we ignore this temporary glitch.
                 if (lastCachedProgress.total > 0) return;
             }
 
@@ -808,35 +776,41 @@ const GUI_HTML = `
           energy = currentEnergy;
       }
 
-      if (typeof energy !== 'undefined') {
+      // Only update cache if we got a valid number
+      if (typeof energy === 'number' && !isNaN(energy)) {
           lastKnownEnergy = energy;
           return energy;
       }
 
-      // Return cached value if both are undefined (prevents fallback to 0 causing loops)
+      // Return cached value if undefined, BUT it might still be undefined if never set
       return lastKnownEnergy;
   }
 
-  // NEW: Polling-based wait function
-  const waitForEnergy = async (targetEnergy) => {
+  // Refactored: Polling-based wait helper function
+  const pollForEnergy = async (targetEnergy, checkStop) => {
     while (true) {
-        if (stopWhileLoop || !isRunning) return; 
+        if (checkStop()) return; 
 
         const current = getCurrentEnergy();
+        
+        // Handle case where energy is still unknown (undefined)
+        // We act as if we have 0 energy and wait
+        const effectiveEnergy = (typeof current === 'number') ? current : 0;
 
-        if (current >= targetEnergy) {
+        if (effectiveEnergy >= targetEnergy) {
             return; // Energy reached!
         }
 
         // Update UI
-        const energyStatus = `(${current}/${targetEnergy})`;
+        const displayStr = (typeof current === 'undefined') ? '?' : current;
+        const energyStatus = `(${displayStr}/${targetEnergy})`;
         updateGuiStatus(`充能中... ${energyStatus}`, "#1982c4", "⏳");
         
         // Dynamic Wait:
         // If we are far from target (>5), wait 30s.
-        // If we are close (<=5), wait 5s to be snappy.
-        const deficit = targetEnergy - current;
-        const waitTime = deficit > 5 ? 30000 : 5000;
+        // If we are close (<=5), wait 200ms to be snappy.
+        const deficit = targetEnergy - effectiveEnergy;
+        const waitTime = deficit > 5 ? 30000 : 200;
 
         await new Promise(r => setTimeout(r, waitTime));
     }
@@ -891,20 +865,23 @@ const GUI_HTML = `
         }
       }
       
+      // Get Energy Safe
+      const rawEnergy = getCurrentEnergy();
+      // Review Fix: Handle undefined energy by defaulting to 0 for calculation logic
+      const safeEnergy = (typeof rawEnergy === 'number') ? rawEnergy : 0;
+
       // Determine Target
       const {shouldAct, target} = evaluateAction({
         mode: botConfig.mode,
-        currentEnergy: getCurrentEnergy(),
+        currentEnergy: safeEnergy,
         pixelCount: pixelsToPlace.length,
         threshold: botConfig.energyThreshold,
         maxEnergy,
-        // rate is no longer needed
       });
 
       if (shouldAct) {
         // 决定这次发多少
-        const current = getCurrentEnergy();
-        const countToSend = Math.min(current, pixelsToPlace.length);
+        const countToSend = Math.min(safeEnergy, pixelsToPlace.length);
         const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
 
         updateGuiStatus(`正在绘制 ${pixelsThisRequest.length} 个点...`, "#A8D0DC", "🖌️");
@@ -938,7 +915,8 @@ const GUI_HTML = `
       }
 
       // Wait until energy is sufficient
-      await waitForEnergy(target);
+      // Pass a stop check function to the helper
+      await pollForEnergy(target, () => stopWhileLoop || !isRunning);
     }
     
     // 循环结束（手动停止）
