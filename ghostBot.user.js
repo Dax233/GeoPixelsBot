@@ -154,36 +154,27 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
 }
 
 // Refactored Logic Helper
-function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy}) {
+function evaluateAction({
+  mode,
+  currentEnergy,
+  pixelCount,
+  threshold,
+  maxEnergy,
+}) {
   let target = 0;
-  if (mode === 'maintain') {
-      target = 1;
+  if (mode === "maintain") {
+    target = 1;
   } else {
-      const effectiveThreshold = Math.min(maxEnergy, threshold);
-      target = pixelCount >= effectiveThreshold ? effectiveThreshold : pixelCount;
-      // Ensure at least 1 if there are pixels to place
-      if (pixelCount > 0) target = Math.max(1, target);
+    const effectiveThreshold = Math.min(maxEnergy, threshold);
+    target = pixelCount >= effectiveThreshold ? effectiveThreshold : pixelCount;
+    // Ensure at least 1 if there are pixels to place
+    if (pixelCount > 0) target = Math.max(1, target);
   }
 
-  // Safe check for undefined energy
-  let safeEnergy;
-  if (typeof currentEnergy === 'number' && !isNaN(currentEnergy)) {
-    safeEnergy = currentEnergy;
-  } else {
-    safeEnergy = 0;
-    // Log or monitor fallback to 0 for energy
-    console.warn('[ghostBot] Fallback: currentEnergy is undefined or NaN. Defaulting to 0.', { currentEnergy });
-    // Optionally, send to monitoring endpoint here if available
-    // sendMonitoringEvent('energy_fallback', { value: currentEnergy });
-  }
+  // currentEnergy is guaranteed to be an integer >= 0 by getCurrentEnergy()
+  const shouldAct = currentEnergy >= target && pixelCount > 0;
 
-  // Should act immediately if we have enough energy AND there are pixels to place
-  const shouldAct = safeEnergy >= target && pixelCount > 0;
-
-  return {
-    shouldAct,
-    target
-  };
+  return { shouldAct, target };
 }
 
 // Extracted Styles and HTML for cleaner main script
@@ -365,9 +356,6 @@ const GUI_HTML = `
   // 状态变量
   let isRunning = false;
   let fixCounter = 0;
-  
-  let lastKnownEnergy = undefined; 
-  let lastCachedProgress = { total: 0, remaining: 0, pct: "0.0" };
 
   // GUI 配置对象
   const botConfig = {
@@ -378,187 +366,163 @@ const GUI_HTML = `
 
   // Notification Helper (DOM Helper)
   const showCompletionNotification = (message) => {
-      const notification = document.createElement('div');
-      notification.className = 'gb-notification';
-      notification.innerText = message;
-      document.body.appendChild(notification);
+    const notification = document.createElement("div");
+    notification.className = "gb-notification";
+    notification.innerText = message;
+    document.body.appendChild(notification);
 
-      // Remove after 4 seconds
-      setTimeout(() => {
-          notification.style.transition = "opacity 0.5s";
-          notification.style.opacity = "0";
-          setTimeout(() => notification.remove(), 500);
-      }, 4000);
+    // Remove after 4 seconds
+    setTimeout(() => {
+      notification.style.transition = "opacity 0.5s";
+      notification.style.opacity = "0";
+      setTimeout(() => notification.remove(), 500);
+    }, 4000);
   };
-
-  // Utility: Make an element draggable with boundary checks
-  function makeDraggable(handleEl, panelEl) {
-      let isDragging = false;
-      let startX, startY, initialLeft, initialTop;
-
-      // Helper to keep panel within window bounds
-      const clamp = (val, min, max) => Math.min(Math.max(val, min), max);
-
-      const onMouseMove = (e) => {
-          if (!isDragging) return;
-          const dx = e.clientX - startX;
-          const dy = e.clientY - startY;
-          
-          const rect = panelEl.getBoundingClientRect();
-          const winWidth = window.innerWidth;
-          const winHeight = window.innerHeight;
-
-          const newLeft = clamp(initialLeft + dx, 0, winWidth - rect.width);
-          const newTop = clamp(initialTop + dy, 0, winHeight - rect.height);
-
-          panelEl.style.left = `${newLeft}px`;
-          panelEl.style.top = `${newTop}px`;
-      };
-
-      const onMouseUp = () => {
-          isDragging = false;
-          document.removeEventListener('mousemove', onMouseMove);
-          document.removeEventListener('mouseup', onMouseUp);
-      };
-
-      handleEl.addEventListener('mousedown', (e) => {
-          // Ignore if clicking controls
-          if(e.target.closest('.gb-window-ctrls')) return;
-          
-          isDragging = true;
-          startX = e.clientX;
-          startY = e.clientY;
-          
-          const rect = panelEl.getBoundingClientRect();
-          initialLeft = rect.left;
-          initialTop = rect.top;
-          
-          // Switch to absolute positioning
-          panelEl.style.right = 'auto';
-          panelEl.style.bottom = 'auto';
-          panelEl.style.left = `${initialLeft}px`;
-          panelEl.style.top = `${initialTop}px`;
-          
-          document.addEventListener('mousemove', onMouseMove);
-          document.addEventListener('mouseup', onMouseUp);
-          e.preventDefault();
-      });
-      
-      // Handle Window Resize (Keep panel on screen)
-      window.addEventListener('resize', () => {
-           const rect = panelEl.getBoundingClientRect();
-           const winWidth = window.innerWidth;
-           const winHeight = window.innerHeight;
-           
-           let newLeft = rect.left;
-           let newTop = rect.top;
-           let changed = false;
-
-           if (newLeft + rect.width > winWidth) { newLeft = winWidth - rect.width; changed = true; }
-           if (newTop + rect.height > winHeight) { newTop = winHeight - rect.height; changed = true; }
-           if (newLeft < 0) { newLeft = 0; changed = true; }
-           if (newTop < 0) { newTop = 0; changed = true; }
-
-           if (changed) {
-               panelEl.style.left = `${newLeft}px`;
-               panelEl.style.top = `${newTop}px`;
-           }
-      });
-  }
-
-  // Utility: Setup minimize and close buttons
-  function setupWindowControls(panelEl) {
-      const closeBtn = panelEl.querySelector('.gb-close');
-      const minBtn = panelEl.querySelector('.gb-min-btn');
-
-      if (closeBtn) {
-          closeBtn.addEventListener('click', () => panelEl.remove());
-      }
-
-      if (minBtn) {
-          // SVG icons for minimize and restore
-          const minimizeIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="12" width="10" height="2" fill="currentColor"/></svg>`;
-          const restoreIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="4" width="10" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="6" width="6" height="4" fill="currentColor"/></svg>`;
-
-          // Initial icon and tooltip
-          minBtn.innerHTML = minimizeIcon;
-          minBtn.title = "Minimize";
-
-          minBtn.addEventListener('click', () => {
-              panelEl.classList.toggle('gb-minimized');
-              const isMin = panelEl.classList.contains('gb-minimized');
-              minBtn.innerHTML = isMin ? restoreIcon : minimizeIcon;
-              minBtn.title = isMin ? "Restore" : "Minimize";
-          });
-      }
-  }
 
   // 创建 GUI
   const createGUI = () => {
-    // Guard against duplicate panels
-    if (document.getElementById('ghostBot-gui-panel')) return;
+    if (document.getElementById("ghostBot-gui-panel")) return;
 
-    // 1. 注入样式到 HEAD
-    const style = document.createElement('style');
+    // 1. 注入样式
+    const style = document.createElement("style");
     style.textContent = GUI_STYLES;
     document.head.appendChild(style);
 
     // 2. 构建面板
-    const wrapper = document.createElement('div');
+    const wrapper = document.createElement("div");
     wrapper.innerHTML = GUI_HTML;
     const panel = wrapper.firstElementChild;
-    
-    // 3. 安全地设置动态值
-    const thresholdInput = panel.querySelector('#energy-threshold-input');
-    if (thresholdInput) {
-        thresholdInput.value = botConfig.energyThreshold;
-    }
+
+    // 设置初始值
+    const thresholdInput = panel.querySelector("#energy-threshold-input");
+    if (thresholdInput) thresholdInput.value = botConfig.energyThreshold;
 
     document.body.appendChild(panel);
 
-    // 4. 应用新的辅助函数
-    const header = panel.querySelector('.gb-header');
-    makeDraggable(header, panel);
-    setupWindowControls(panel);
+    // 3. 内联拖拽逻辑
+    const header = panel.querySelector(".gb-header");
+    header.style.cursor = "move";
 
-    // 5. 事件委托 (Controls)
-    panel.addEventListener('click', e => {
-        if (e.target.id === 'btn-start') if(usw.ghostBot) usw.ghostBot.start();
-        if (e.target.id === 'btn-stop') if(usw.ghostBot) usw.ghostBot.stop();
+    let isDragging = false,
+      startX,
+      startY,
+      initialLeft,
+      initialTop;
+
+    const onMove = (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const rect = panel.getBoundingClientRect();
+      const winW = window.innerWidth,
+        winH = window.innerHeight;
+
+      // 简单的边界限制
+      const newLeft = Math.min(
+        Math.max(initialLeft + dx, 0),
+        winW - rect.width
+      );
+      const newTop = Math.min(Math.max(initialTop + dy, 0), winH - rect.height);
+
+      panel.style.left = `${newLeft}px`;
+      panel.style.top = `${newTop}px`;
+    };
+
+    const onUp = () => {
+      isDragging = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+
+    header.addEventListener("mousedown", (e) => {
+      if (e.target.closest(".gb-window-ctrls")) return;
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = panel.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+
+      // 切换到绝对定位
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+      panel.style.left = `${initialLeft}px`;
+      panel.style.top = `${initialTop}px`;
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+      e.preventDefault();
     });
 
-    panel.addEventListener('change', e => {
-        if (e.target.id === 'bot-mode-select') {
-            botConfig.mode = e.target.value;
-            const stats = panel.querySelector('#maintain-stats');
-            if (stats) stats.style.display = botConfig.mode === 'maintain' ? 'block' : 'none';
-            log(LOG_LEVELS.info, `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`);
-        }
-        if (e.target.id === 'energy-threshold-input') {
-            let val = parseInt(e.target.value, 10);
-            if (val < 1) val = 1;
-            botConfig.energyThreshold = val;
-            log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
-        }
+    // 窗口大小改变时保持面板在屏幕内
+    window.addEventListener("resize", () => {
+      const rect = panel.getBoundingClientRect();
+      const winW = window.innerWidth,
+        winH = window.innerHeight;
+      let l = rect.left,
+        t = rect.top;
+      if (l + rect.width > winW) l = winW - rect.width;
+      if (t + rect.height > winH) t = winH - rect.height;
+      panel.style.left = `${Math.max(0, l)}px`;
+      panel.style.top = `${Math.max(0, t)}px`;
     });
 
-    // 更新 UI 状态辅助
+    // 4. 内联窗口控制逻辑
+    panel
+      .querySelector(".gb-close")
+      .addEventListener("click", () => panel.remove());
+
+    const minBtn = panel.querySelector(".gb-min-btn");
+    const minimizeIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="12" width="10" height="2" fill="currentColor"/></svg>`;
+    const restoreIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="4" width="10" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="6" width="6" height="4" fill="currentColor"/></svg>`;
+
+    minBtn.innerHTML = minimizeIcon;
+    minBtn.title = "Minimize";
+
+    minBtn.addEventListener("click", () => {
+      panel.classList.toggle("gb-minimized");
+      const isMin = panel.classList.contains("gb-minimized");
+      minBtn.innerHTML = isMin ? restoreIcon : minimizeIcon;
+      minBtn.title = isMin ? "Restore" : "Minimize";
+    });
+
+    // 5. 主要控件事件委托
+    panel.addEventListener("click", (e) => {
+      if (e.target.id === "btn-start") if (usw.ghostBot) usw.ghostBot.start();
+      if (e.target.id === "btn-stop") if (usw.ghostBot) usw.ghostBot.stop();
+    });
+
+    panel.addEventListener("change", (e) => {
+      if (e.target.id === "bot-mode-select") {
+        botConfig.mode = e.target.value;
+        const stats = panel.querySelector("#maintain-stats");
+        if (stats)
+          stats.style.display =
+            botConfig.mode === "maintain" ? "block" : "none";
+        log(
+          LOG_LEVELS.info,
+          `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`
+        );
+      }
+      if (e.target.id === "energy-threshold-input") {
+        let val = parseInt(e.target.value, 10);
+        if (val < 1) val = 1;
+        botConfig.energyThreshold = val;
+        log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
+      }
+    });
+
+    // UI 更新方法
     const setUiRunning = (running) => {
-        isRunning = running;
-        const btnStart = panel.querySelector("#btn-start");
-        const btnStop = panel.querySelector("#btn-stop");
-        const modeSelect = panel.querySelector("#bot-mode-select");
-        if (btnStart && btnStop && modeSelect) {
-            if (running) {
-                btnStart.disabled = true;
-                btnStop.disabled = false;
-                modeSelect.disabled = true;
-            } else {
-                btnStart.disabled = false;
-                btnStop.disabled = true;
-                modeSelect.disabled = false;
-            }
-        }
+      isRunning = running;
+      const btnStart = panel.querySelector("#btn-start");
+      const btnStop = panel.querySelector("#btn-stop");
+      const modeSelect = panel.querySelector("#bot-mode-select");
+      if (btnStart && btnStop && modeSelect) {
+        btnStart.disabled = running;
+        btnStop.disabled = !running;
+        modeSelect.disabled = running;
+      }
     };
 
     const fixCountDisplay = panel.querySelector("#fix-count-display");
@@ -566,69 +530,52 @@ const GUI_HTML = `
     const statsProgressBar = panel.querySelector("#stats-progress-bar");
     const statsPixelCount = panel.querySelector("#stats-pixel-count");
 
-    // 导出内部函数供外部调用更新
     usw.ghostBotGui = {
-        setRunning: setUiRunning,
-        updateFixCount: (count) => {
-            if (fixCountDisplay) fixCountDisplay.innerText = count;
-        },
-        updateProgress: (total, remaining) => {
-            if (!statsPixelCount) return;
-            
-            // Caching Mechanism: Prevent flickering when total is briefly 0
-            if (total === 0) {
-                if (lastCachedProgress.total > 0) return;
-            }
+      setRunning: setUiRunning,
+      updateFixCount: (count) => {
+        if (fixCountDisplay) fixCountDisplay.innerText = count;
+      },
+      // 移除缓存，直接更新
+      updateProgress: (total, remaining) => {
+        if (!statsPixelCount) return;
+        const placed = total - remaining;
+        const pct = total > 0 ? ((placed / total) * 100).toFixed(1) : "0.0";
 
-            const placed = total - remaining;
-            const pct = total > 0 ? ((placed / total) * 100).toFixed(1) : "0.0";
-            
-            // Update Cache
-            lastCachedProgress = { total, remaining, pct };
+        statsPixelCount.innerText = `${placed} / ${total}`;
+        statsProgressText.innerText = `${pct}%`;
+        statsProgressBar.style.width = `${pct}%`;
 
-            statsPixelCount.innerText = `${placed} / ${total}`;
-            statsProgressText.innerText = `${pct}%`;
-            statsProgressBar.style.width = `${pct}%`;
-            
-            if (pct === "100.0") {
-                statsProgressText.style.color = "#ffca3a";
-                statsProgressBar.style.background = "#ffca3a";
-            } else {
-                statsProgressText.style.color = "#1982c4";
-                statsProgressBar.style.background = "#1982c4";
-            }
-        }
+        const isComplete = pct === "100.0";
+        const color = isComplete ? "#ffca3a" : "#1982c4";
+        statsProgressText.style.color = color;
+        statsProgressBar.style.background = color;
+      },
     };
-  }
+  };
 
-  // 更新 GUI 状态文字 (移除 innerHTML)
   const updateGuiStatus = (status, color = "white", icon = "ℹ️") => {
     const iconEl = document.getElementById("gb-status-icon");
     const textEl = document.getElementById("gb-status-text");
-    
     if (iconEl) iconEl.innerText = icon;
     if (textEl) {
-        textEl.innerText = status;
-        textEl.style.color = color;
+      textEl.innerText = status;
+      textEl.style.color = color;
     }
-  }
+  };
 
   if (gIdOnloadElement) {
     GOOGLE_CLIENT_ID = gIdOnloadElement.getAttribute("data-client_id");
   } else {
     log(
       LOG_LEVELS.warn,
-      'Could not find the Google Sign-In element ("g_id_onload"). Auto-relogin may fail.'
+      'Could not find the Google Sign-In element ("g_id_onload").'
     );
-    // GOOGLE_CLIENT_ID will remain undefined, and subsequent calls will handle it.
   }
 
   const tryRelog = withErrorHandling(async () => {
     tokenUser = "";
-
     log(LOG_LEVELS.info, "Attempting AutoLogin...");
     await usw.tryAutoLogin();
-
     if (!tokenUser.length) {
       log(LOG_LEVELS.info, "AutoLogin failed, attempting relog with google");
       await new Promise((resolve) => {
@@ -644,17 +591,14 @@ const GUI_HTML = `
               return log(LOG_LEVELS.info, "Google authentication failed");
             const data = await r.json();
             await logIn(data);
-
             resolve();
           },
           auto_select: true,
           context: "signin",
         });
-
         google.accounts.id.prompt();
       });
     }
-
     log(LOG_LEVELS.info, `Relog ${tokenUser.length ? "successful" : "failed"}`);
     return !!tokenUser.length;
   });
@@ -720,26 +664,17 @@ const GUI_HTML = `
       .map((p) => {
         const tileX = Math.floor(p.gridCoord.x / TILE_SIZE) * TILE_SIZE;
         const tileY = Math.floor(p.gridCoord.y / TILE_SIZE) * TILE_SIZE;
-        return {
-          ...p,
-          tileX,
-          tileY,
-          tileKey: `${tileX},${tileY}`,
-        };
+        return { ...p, tileX, tileY, tileKey: `${tileX},${tileY}` };
       });
     log(
       LOG_LEVELS.info,
-      `Filtered ghost pixels. Total valid pixels to track: ${ghostPixelData.length}`
+      `Filtered ghost pixels. Total: ${ghostPixelData.length}`
     );
   };
 
   const getPixelsToPlace = () => {
     if (!ghostPixelData) setGhostPixelData();
-    // log(LOG_LEVELS.debug, "Scanning canvas..."); // Reduce spam
-    
-    // 修复：每次扫描前清空缓存，强制从 synchronize() 后的新位图读取数据以便于多人协作
-    tilePixelCache.clear(); 
-
+    tilePixelCache.clear();
     if (
       typeof tileImageCache === "undefined" ||
       !(tileImageCache instanceof Map)
@@ -747,9 +682,7 @@ const GUI_HTML = `
       log(LOG_LEVELS.error, "Page's `tileImageCache` Map is not available.");
       return [];
     }
-
     const pixelsToPlace = [];
-
     for (const p of ghostPixelData) {
       const tile = tileImageCache.get(p.tileKey);
       if (tile?.colorBitmap) {
@@ -766,11 +699,9 @@ const GUI_HTML = `
           pixelsToPlace.push(p);
         }
       } else {
-        // If the tile isn't in the cache, it definitely needs placing.
         pixelsToPlace.push(p);
       }
     }
-    
     return orderGhostPixels(pixelsToPlace);
   };
 
@@ -790,60 +721,29 @@ const GUI_HTML = `
       if (r.status == 401 && (await tryRelog())) await sendPixels(pixels);
       return false;
     } else {
-        log(LOG_LEVELS.info, `Placed ${pixels.length} pixels.`);
-        return true;
+      log(LOG_LEVELS.info, `Placed ${pixels.length} pixels.`);
+      return true;
     }
   });
 
-  // Helper to get real-time energy safely
-  const getCurrentEnergy = () => {
-      let energy = undefined;
-      
-      // Try getting from unsafeWindow (game state) first
-      if (typeof usw.currentEnergy !== "undefined") {
-          energy = usw.currentEnergy;
-      } else if (typeof currentEnergy !== "undefined") {
-          // Fallback to global scope if accessible
-          energy = currentEnergy;
-      }
+  // 直接获取安全整数能量值
+  const getCurrentEnergy = () => usw.currentEnergy >>> 0;
 
-      // Only update cache if we got a valid number
-      if (typeof energy === 'number' && !isNaN(energy)) {
-          lastKnownEnergy = energy;
-          return energy;
-      }
-
-      // Return cached value if undefined, BUT it might still be undefined if never set
-      return lastKnownEnergy;
-  }
-
-  // Refactored: Polling-based wait helper function
+  // 固定间隔轮询
   const pollForEnergy = async (targetEnergy, checkStop) => {
-    while (true) {
-        if (checkStop()) return; 
+    while (!checkStop()) {
+      const current = getCurrentEnergy();
 
-        const current = getCurrentEnergy();
-        
-        // Handle case where energy is still unknown (undefined)
-        // We act as if we have 0 energy and wait
-        const effectiveEnergy = (typeof current === 'number') ? current : 0;
+      if (current >= targetEnergy) return;
 
-        if (effectiveEnergy >= targetEnergy) {
-            return; // Energy reached!
-        }
+      updateGuiStatus(
+        `充能中... (${current}/${targetEnergy})`,
+        "#1982c4",
+        "⏳"
+      );
 
-        // Update UI
-        const displayStr = (typeof current === 'undefined') ? '?' : current;
-        const energyStatus = `(${displayStr}/${targetEnergy})`;
-        updateGuiStatus(`充能中... ${energyStatus}`, "#1982c4", "⏳");
-        
-        // Dynamic Wait:
-        // If we are far from target (>5), wait 30s.
-        // If we are close (<=5), wait 200ms to be snappy.
-        const deficit = targetEnergy - effectiveEnergy;
-        const waitTime = deficit > 5 ? 30000 : 200;
-
-        await new Promise(r => setTimeout(r, waitTime));
+      // 固定等待 1 秒
+      await new Promise((r) => setTimeout(r, 1000));
     }
   };
 
@@ -857,64 +757,63 @@ const GUI_HTML = `
       return;
     }
 
-    if (isRunning) return; // Prevent double start
-    
-    log(LOG_LEVELS.info, `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`);
+    if (isRunning) return;
+
+    log(
+      LOG_LEVELS.info,
+      `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`
+    );
     usw.ghostBotGui.setRunning(true);
     stopWhileLoop = false;
 
-    // 只有开始时重置计数器，除非是继续维护
-    if (botConfig.mode === 'maintain' && fixCounter === 0) {
-        usw.ghostBotGui.updateFixCount(0);
+    if (botConfig.mode === "maintain" && fixCounter === 0) {
+      usw.ghostBotGui.updateFixCount(0);
     }
 
     while (!stopWhileLoop) {
       isPageVisible = true;
-      // log(LOG_LEVELS.debug, "Syncing...");
       await synchronize("full");
 
       const pixelsToPlace = getPixelsToPlace();
       const totalPixelsInTemplate = ghostPixelData.length;
 
       // 更新统计数据
-      usw.ghostBotGui.updateProgress(totalPixelsInTemplate, pixelsToPlace.length);
+      usw.ghostBotGui.updateProgress(
+        totalPixelsInTemplate,
+        pixelsToPlace.length
+      );
 
       if (pixelsToPlace.length === 0) {
-        if (botConfig.mode === 'build') {
-            // 建造模式：任务完成，停止
-            log(LOG_LEVELS.success, `Build Complete! All pixels match.`);
-            updateGuiStatus("画作已完成！", "#ffca3a", "✨");
-            usw.ghostBot.stop();
-            // Replace alert with non-blocking notification
-            showCompletionNotification("GhostPixel Bot: 建造完成！");
-            break;
+        if (botConfig.mode === "build") {
+          // 建造模式：任务完成，停止
+          log(LOG_LEVELS.success, `Build Complete! All pixels match.`);
+          updateGuiStatus("画作已完成！", "#ffca3a", "✨");
+          usw.ghostBot.stop();
+          // Replace alert with non-blocking notification
+          showCompletionNotification("GhostPixel Bot: 建造完成！");
+          break;
         } else {
-            // 维护模式：等待并重试
-            updateGuiStatus("监控中... 画面完美", "#8ac926", "🛡️");
-            await new Promise(r => setTimeout(r, 5000)); 
-            continue;
+          // 维护模式：等待并重试
+          updateGuiStatus("监控中... 画面完美", "#8ac926", "🛡️");
+          await new Promise((r) => setTimeout(r, 5000));
+          continue;
         }
       }
-      
-      // Get Energy Safe
-      const rawEnergy = getCurrentEnergy();
-      // Review Fix: Handle undefined energy by defaulting to 0 for calculation logic
-      const safeEnergy = (typeof rawEnergy === 'number') ? rawEnergy : 0;
 
-      // Energy initialization timeout logic
-      if (typeof window.energyWaitStart === 'undefined') {
+      const safeEnergy = getCurrentEnergy();
+
+      // Energy initialization safeguard (1 min timeout to prevent infinite loop if energy variable is stuck)
+      if (typeof window.energyWaitStart === "undefined")
+        window.energyWaitStart = Date.now();
+      if (safeEnergy === 0 && Date.now() - window.energyWaitStart > 60000) {
+        log(LOG_LEVELS.error, "Energy initialization timed out.");
+        // Not throwing error to keep script alive, but maybe stop loop?
+        // For now just reset wait start to retry
         window.energyWaitStart = Date.now();
       }
-      const ENERGY_WAIT_TIMEOUT_MS = 60000; // 1 minute timeout
-      if (safeEnergy === 0 && (Date.now() - window.energyWaitStart) > ENERGY_WAIT_TIMEOUT_MS) {
-        throw new Error("Energy was never initialized. Exiting to prevent indefinite waiting.");
-      }
-      if (safeEnergy > 0) {
-        window.energyWaitStart = undefined; // Reset if energy is available
-      }
+      if (safeEnergy > 0) window.energyWaitStart = undefined;
 
-      // Determine Target
-      const {shouldAct, target} = evaluateAction({
+      const { shouldAct, target } = evaluateAction({
         mode: botConfig.mode,
         currentEnergy: safeEnergy,
         pixelCount: pixelsToPlace.length,
@@ -927,7 +826,11 @@ const GUI_HTML = `
         const countToSend = Math.min(safeEnergy, pixelsToPlace.length);
         const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
 
-        updateGuiStatus(`正在绘制 ${pixelsThisRequest.length} 个点...`, "#A8D0DC", "🖌️");
+        updateGuiStatus(
+          `正在绘制 ${pixelsThisRequest.length} 个点...`,
+          "#A8D0DC",
+          "🖌️"
+        );
 
         const success = await sendPixels(
           pixelsThisRequest.map((d) => ({
@@ -945,15 +848,22 @@ const GUI_HTML = `
         }
 
         if (success) {
-             // 绘制成功后，立即更新一次统计显示（减少滞后感）
-             const estimatedRemaining = pixelsToPlace.length - pixelsThisRequest.length;
-             usw.ghostBotGui.updateProgress(totalPixelsInTemplate, estimatedRemaining);
+          // 绘制成功后，立即更新一次统计显示（减少滞后感）
+          const estimatedRemaining =
+            pixelsToPlace.length - pixelsThisRequest.length;
+          usw.ghostBotGui.updateProgress(
+            totalPixelsInTemplate,
+            estimatedRemaining
+          );
 
-             if (botConfig.mode === 'maintain') {
-                fixCounter += pixelsThisRequest.length;
-                usw.ghostBotGui.updateFixCount(fixCounter);
-                log(LOG_LEVELS.success, `Fixed ${pixelsThisRequest.length} pixel(s). Total fixed: ${fixCounter}`);
-             }
+          if (botConfig.mode === "maintain") {
+            fixCounter += pixelsThisRequest.length;
+            usw.ghostBotGui.updateFixCount(fixCounter);
+            log(
+              LOG_LEVELS.success,
+              `Fixed ${pixelsThisRequest.length} pixel(s). Total: ${fixCounter}`
+            );
+          }
         }
       }
 
@@ -961,7 +871,7 @@ const GUI_HTML = `
       // Pass a stop check function to the helper
       await pollForEnergy(target, () => stopWhileLoop || !isRunning);
     }
-    
+
     // 循环结束（手动停止）
     usw.ghostBotGui.setRunning(false);
   });
@@ -988,10 +898,7 @@ const GUI_HTML = `
     config: botConfig,
   };
 
-  // 初始化 GUI
-  const ensureSingleGUI = () => {
-    createGUI();
-  }
+  const ensureSingleGUI = () => createGUI();
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", ensureSingleGUI);
