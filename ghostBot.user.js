@@ -879,6 +879,18 @@ const GUI_HTML = `
       // Review Fix: Handle undefined energy by defaulting to 0 for calculation logic
       const safeEnergy = (typeof rawEnergy === 'number') ? rawEnergy : 0;
 
+      // Energy initialization timeout logic
+      if (typeof window.energyWaitStart === 'undefined') {
+        window.energyWaitStart = Date.now();
+      }
+      const ENERGY_WAIT_TIMEOUT_MS = 60000; // 1 minute timeout
+      if (safeEnergy === 0 && (Date.now() - window.energyWaitStart) > ENERGY_WAIT_TIMEOUT_MS) {
+        throw new Error("Energy was never initialized. Exiting to prevent indefinite waiting.");
+      }
+      if (safeEnergy > 0) {
+        window.energyWaitStart = undefined; // Reset if energy is available
+      }
+
       // Determine Target
       const {shouldAct, target} = evaluateAction({
         mode: botConfig.mode,
