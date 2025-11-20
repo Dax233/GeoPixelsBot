@@ -666,8 +666,6 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
       } else {
           waitSeconds = 1; 
       }
-      
-      waitSeconds += 0.5; 
 
       await waitWithCountdown(waitSeconds, targetEnergyVal);
     }
