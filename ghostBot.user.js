@@ -536,7 +536,14 @@ function needsPlacing(pixel, tileKey, tileData, width, height) {
     while (remaining > 0) {
         if (stopWhileLoop) break;
         
-        const energyStatus = `(${currentEnergy}/${targetEnergy})`;
+        // 尝试从 unsafeWindow 更新 energy
+        // 如果无法从 unsafeWindow 获取，则回退到全局变量 currentEnergy
+        let displayEnergy = currentEnergy;
+        if (typeof usw.currentEnergy !== "undefined") {
+            displayEnergy = usw.currentEnergy;
+        }
+
+        const energyStatus = `(${displayEnergy}/${targetEnergy})`;
         updateGuiStatus(`充能中... ${energyStatus} - ${remaining}s`, "#1982c4", "⏳");
         
         await new Promise(r => setTimeout(r, 1000));
