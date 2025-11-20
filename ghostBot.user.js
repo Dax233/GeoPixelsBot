@@ -170,8 +170,12 @@ function evaluateAction({mode, currentEnergy, pixelCount, threshold, maxEnergy, 
   // Optimization: Return 0 wait if no wait is needed (enough energy)
   const waitSeconds = needed <= 0 ? 0 : needed * rate;
 
+  // Fix: Ensure pixelCount > 0 is checked for all conditions
+  // This prevents the bot from acting if there are no pixels, even if energy conditions are met
+  const shouldAct = (needed <= 0 || currentEnergy >= pixelCount) && pixelCount > 0;
+
   return {
-    shouldAct: needed <= 0 || (currentEnergy >= pixelCount && pixelCount > 0),
+    shouldAct,
     waitSeconds,
     target
   };
