@@ -726,21 +726,34 @@ const GUI_HTML = `
     }
   });
 
-  // 直接获取安全整数能量值
-  const getCurrentEnergy = () => Math.max(0, Number(usw.currentEnergy) || 0);
+  // 修复：恢复健壮的能量读取逻辑，增加回退机制
+  const getCurrentEnergy = () => {
+    // 1. 尝试读取 unsafeWindow 上的变量
+    if (typeof usw.currentEnergy !== "undefined") return usw.currentEnergy;
+    // 2. 回退：尝试读取全局作用域变量 (某些脚本管理器环境)
+    if (typeof currentEnergy !== "undefined") return currentEnergy;
+    // 3. 失败：返回 0
+    return 0;
+  };
 
-  // 固定间隔轮询
+  // 轮询函数：增加视觉心跳 (Loading 动画)
   const pollForEnergy = async (targetEnergy, checkStop) => {
+    let tick = 0;
+    const spinChars = ["|", "/", "-", "\\"];
+
     while (!checkStop()) {
       const current = getCurrentEnergy();
 
       if (current >= targetEnergy) return;
 
+      // 视觉反馈：旋转的游标，证明脚本正在运行
+      const spinner = spinChars[tick % 4];
       updateGuiStatus(
-        `充能中... (${current}/${targetEnergy})`,
+        `充能中... ${spinner} (${current}/${targetEnergy})`,
         "#1982c4",
         "⏳"
       );
+      tick++;
 
       // 固定等待 1 秒
       await new Promise((r) => setTimeout(r, 1000));
@@ -786,7 +799,7 @@ const GUI_HTML = `
       if (pixelsToPlace.length === 0) {
         if (botConfig.mode === "build") {
           // 建造模式：任务完成，停止
-          log(LOG_LEVELS.success, `Build Complete! All pixels match.`);
+          log(LOG_LEVELS.success, `Build Complete!`);
           updateGuiStatus("画作已完成！", "#ffca3a", "✨");
           usw.ghostBot.stop();
           // Replace alert with non-blocking notification
