@@ -42,7 +42,32 @@
       if (saved) botConfig = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
   } catch (e) { console.error("Failed to load config", e); }
 
-  const saveConfig = () => localStorage.setItem('ghostBotConfig_v2', JSON.stringify(botConfig));
+  // Wrap localStorage write in try/catch
+  const saveConfig = () => {
+    try {
+      localStorage.setItem('ghostBotConfig_v2', JSON.stringify(botConfig));
+    } catch (e) {
+      console.warn("Failed to save config; continuing without persisting changes", e);
+    }
+  };
+
+  // Centralized config update helper
+  const updateConfig = (key, value) => {
+    botConfig[key] = value;
+
+    // Handle side effects
+    if (key === "placeFree") {
+        usw.ghostBot.placeFreeColors = value;
+        usw.ghostBot.reload();
+    }
+    if (key === "placeTransparent") {
+        usw.ghostBot.placeTransparentGhostPixels = value;
+        usw.ghostBot.reload();
+    }
+    // "mode" side effects are handled in UI update logic or main loop checks
+
+    saveConfig();
+  };
 
   //#region Utils & Helpers
   Number.prototype.iToH = function () { return this.toString(16).padStart(2, "0"); };
@@ -129,6 +154,7 @@
     return (tileData[idx] !== pixel.color.r || tileData[idx + 1] !== pixel.color.g || tileData[idx + 2] !== pixel.color.b || tileData[idx + 3] !== pixel.color.a);
   }
 
+  // Re-used evaluateAction for logic separation
   function evaluateAction({ mode, currentEnergy, pixelCount, threshold, maxEnergy }) {
     let target = 0;
     if (mode === "maintain") target = 1;
@@ -345,54 +371,8 @@
       parent.appendChild(btn);
   };
 
-  const createPanel = () => {
-    const panel = document.createElement("div");
-    panel.id = "ghostBot-gui-panel";
-    panel.innerHTML = GUI_HTML;
-    document.body.appendChild(panel);
-
-    // --- Logic Bindings ---
-    const thresholdInput = panel.querySelector("#energy-threshold-input");
-    const thresholdSlider = panel.querySelector("#energy-threshold-slider");
-    const modeSelect = panel.querySelector("#bot-mode-select");
-    const chkFree = panel.querySelector("#chk-free-color");
-    const chkTrans = panel.querySelector("#chk-transparent");
-    const chkAudio = panel.querySelector("#chk-audio");
-    const statsDiv = panel.querySelector("#maintain-stats");
-
-    // Core: Update Max Energy & Clamp
-    const updateMaxEnergyLimit = (forceSave = false) => {
-        const detected = detectMaxEnergy();
-        const newMax = detected || botConfig.maxEnergyLimit || 200;
-
-        if (detected || forceSave) {
-            botConfig.maxEnergyLimit = newMax;
-            saveConfig();
-        }
-        if (thresholdSlider && thresholdInput) {
-            thresholdSlider.max = newMax;
-            thresholdInput.max = newMax;
-            if (botConfig.energyThreshold > newMax) {
-                botConfig.energyThreshold = newMax;
-                thresholdSlider.value = newMax;
-                thresholdInput.value = newMax;
-                saveConfig();
-            }
-        }
-        log(LOG_LEVELS.info, `Max energy synced: ${newMax}`);
-    };
-
-    // Initialize UI Values
-    updateMaxEnergyLimit();
-    if (thresholdInput) thresholdInput.value = botConfig.energyThreshold;
-    if (thresholdSlider) thresholdSlider.value = botConfig.energyThreshold;
-    if (modeSelect) modeSelect.value = botConfig.mode;
-    if (chkFree) chkFree.checked = botConfig.placeFree;
-    if (chkTrans) chkTrans.checked = botConfig.placeTransparent;
-    if (chkAudio) chkAudio.checked = botConfig.audioAlert;
-    if (statsDiv) statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
-
-    // Dragging
+  // Split createPanel into smaller helpers
+  const wirePanelDragging = (panel) => {
     const header = panel.querySelector(".gb-header");
     let isDragging = false, startX, startY, initialLeft, initialTop;
     const onMove = (e) => {
@@ -412,6 +392,16 @@
       panel.style.left = `${initialLeft}px`; panel.style.top = `${initialTop}px`;
       document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
     });
+  };
+
+  const wirePanelControls = (panel) => {
+    const thresholdInput = panel.querySelector("#energy-threshold-input");
+    const thresholdSlider = panel.querySelector("#energy-threshold-slider");
+    const modeSelect = panel.querySelector("#bot-mode-select");
+    const chkFree = panel.querySelector("#chk-free-color");
+    const chkTrans = panel.querySelector("#chk-transparent");
+    const chkAudio = panel.querySelector("#chk-audio");
+    const statsDiv = panel.querySelector("#maintain-stats");
 
     // Close / Minimize Logic
     panel.querySelector(".gb-close").addEventListener("click", () => {
@@ -430,28 +420,27 @@
       if (e.target.id === "btn-start") if (usw.ghostBot) usw.ghostBot.start();
       if (e.target.id === "btn-stop") if (usw.ghostBot) usw.ghostBot.stop();
       if (e.target.id === "btn-refresh-max") {
-          updateMaxEnergyLimit(true);
+          if (usw.ghostBotGui) usw.ghostBotGui.refreshMax(true);
           e.target.style.transform = "rotate(360deg)";
           setTimeout(() => e.target.style.transform = "rotate(0deg)", 500);
       }
     });
 
+    // Use updateConfig helper
     panel.addEventListener("change", (e) => {
       if (e.target.id === "bot-mode-select") {
-        botConfig.mode = e.target.value;
+        updateConfig("mode", e.target.value);
         if (statsDiv) statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
-        saveConfig();
       }
-      if (e.target.id === "chk-free-color") { botConfig.placeFree = e.target.checked; usw.ghostBot.placeFreeColors = botConfig.placeFree; usw.ghostBot.reload(); saveConfig(); }
-      if (e.target.id === "chk-transparent") { botConfig.placeTransparent = e.target.checked; usw.ghostBot.placeTransparentGhostPixels = botConfig.placeTransparent; usw.ghostBot.reload(); saveConfig(); }
-      if (e.target.id === "chk-audio") { botConfig.audioAlert = e.target.checked; saveConfig(); }
+      if (e.target.id === "chk-free-color") updateConfig("placeFree", e.target.checked);
+      if (e.target.id === "chk-transparent") updateConfig("placeTransparent", e.target.checked);
+      if (e.target.id === "chk-audio") updateConfig("audioAlert", e.target.checked);
     });
 
     if (thresholdSlider) thresholdSlider.addEventListener("input", (e) => {
         const val = parseInt(e.target.value, 10);
         if (thresholdInput) thresholdInput.value = val;
-        botConfig.energyThreshold = val;
-        saveConfig();
+        updateConfig("energyThreshold", val);
     });
     if (thresholdInput) thresholdInput.addEventListener("input", (e) => {
         let val = parseInt(e.target.value, 10);
@@ -459,9 +448,27 @@
         const currentMax = parseInt(thresholdInput.max, 10) || 200;
         if (val > currentMax) val = currentMax;
         if (thresholdSlider) thresholdSlider.value = val;
-        botConfig.energyThreshold = val;
-        saveConfig();
+        updateConfig("energyThreshold", val);
     });
+
+    // Initial Values
+    if (thresholdInput) thresholdInput.value = botConfig.energyThreshold;
+    if (thresholdSlider) thresholdSlider.value = botConfig.energyThreshold;
+    if (modeSelect) modeSelect.value = botConfig.mode;
+    if (chkFree) chkFree.checked = botConfig.placeFree;
+    if (chkTrans) chkTrans.checked = botConfig.placeTransparent;
+    if (chkAudio) chkAudio.checked = botConfig.audioAlert;
+    if (statsDiv) statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
+  };
+
+  const createPanel = () => {
+    const panel = document.createElement("div");
+    panel.id = "ghostBot-gui-panel";
+    panel.innerHTML = GUI_HTML;
+    document.body.appendChild(panel);
+
+    wirePanelDragging(panel);
+    wirePanelControls(panel);
 
     // Expose GUI methods
     const setUiRunning = (running) => {
@@ -473,6 +480,31 @@
         btnStart.disabled = running; btnStop.disabled = !running; modeSelect.disabled = running;
       }
     };
+    
+    // Core: Update Max Energy & Clamp
+    const updateMaxEnergyLimit = (forceSave = false) => {
+        const detected = detectMaxEnergy();
+        const newMax = detected || botConfig.maxEnergyLimit || 200;
+
+        if (detected || forceSave) {
+            updateConfig("maxEnergyLimit", newMax);
+        }
+        
+        const thresholdSlider = panel.querySelector("#energy-threshold-slider");
+        const thresholdInput = panel.querySelector("#energy-threshold-input");
+
+        if (thresholdSlider && thresholdInput) {
+            thresholdSlider.max = newMax;
+            thresholdInput.max = newMax;
+            if (botConfig.energyThreshold > newMax) {
+                updateConfig("energyThreshold", newMax);
+                thresholdSlider.value = newMax;
+                thresholdInput.value = newMax;
+            }
+        }
+        log(LOG_LEVELS.info, `Max energy synced: ${newMax}`);
+    };
+
     const fixCountDisplay = panel.querySelector("#fix-count-display");
     const statsProgressText = panel.querySelector("#stats-progress-text");
     const statsProgressBar = panel.querySelector("#stats-progress-bar");
@@ -485,7 +517,7 @@
       updateFixCount: (count) => { if (fixCountDisplay) fixCountDisplay.innerText = count; },
       updateProgress: (total, remaining) => {
         if (!statsPixelCount) return;
-        // 修复: 如果总数为0（数据未加载或异常），则不更新UI，避免闪烁0%
+        // 如果总数为0（数据未加载或异常），则不更新UI，避免闪烁0%
         if (total <= 0) return;
 
         const placed = total - remaining;
@@ -511,13 +543,17 @@
                     else if (remainingSec < 15552000) etaStr = `${Math.floor(remainingSec/86400)}d ${Math.floor((remainingSec%86400)/3600)}h`; // < 180 days
                     else etaStr = `> 180d`;
 
-                    statsEta.innerText = `ETA: ${etaStr}`;
-                } else statsEta.innerText = `ETA: ...`;
-            } else statsEta.innerText = `ETA: 计算中...`;
-        } else if (!isRunning) statsEta.innerText = `ETA: --:--`;
-        else if (remaining === 0) statsEta.innerText = `ETA: 完成`;
+                    // Safety check for statsEta
+                    if (statsEta) statsEta.innerText = `ETA: ${etaStr}`;
+                } else if (statsEta) statsEta.innerText = `ETA: ...`;
+            } else if (statsEta) statsEta.innerText = `ETA: 计算中...`;
+        } else if (!isRunning && statsEta) statsEta.innerText = `ETA: --:--`;
+        else if (remaining === 0 && statsEta) statsEta.innerText = `ETA: 完成`;
       },
     };
+    
+    // Initial sync
+    updateMaxEnergyLimit();
   };
 
   const updateGuiStatus = (status, color = "white", icon = "ℹ️") => {
@@ -622,41 +658,16 @@
     return 0;
   };
 
-  // Revised pollForEnergy: Checks threshold dynamically and updates progress continuously
-  const pollForEnergy = async (checkStop) => {
+  // Refactored pollForEnergy to be simple and accept an onTick callback
+  const pollForEnergy = async (checkStop, onTick) => {
     let tick = 0;
     const spinChars = ["|", "/", "-", "\\"];
 
     while (!checkStop()) {
       const current = getCurrentEnergy();
-      const safeMaxEnergy = botConfig.maxEnergyLimit || 200;
-      const effectiveThreshold = Math.min(safeMaxEnergy, botConfig.energyThreshold);
-
-      // Refresh pixel data to update progress and check if we need to act
-      // This allows the progress bar to update even while waiting for energy
-      const pixelsToPlace = getPixelsToPlace();
-      const totalPixelsInTemplate = ghostPixelData ? ghostPixelData.length : 0;
-
-      if (totalPixelsInTemplate > 0) {
-          usw.ghostBotGui.updateProgress(totalPixelsInTemplate, pixelsToPlace.length);
-      }
-
-      const needed = pixelsToPlace.length;
-      // If no pixels needed, return to main loop to handle 'finished' state
-      if (needed === 0) return;
-
-      // Dynamic target calculation inside loop
-      let target = 0;
-      if (botConfig.mode === "maintain") {
-          target = 1;
-      } else {
-          target = needed >= effectiveThreshold ? effectiveThreshold : needed;
-          if (needed > 0) target = Math.max(1, target);
-      }
-
-      if (current >= target) return; // Ready to place
-
-      updateGuiStatus(`充能中... ${spinChars[tick % 4]} (${current}/${target}) [Req: ${botConfig.energyThreshold}]`, "#1982c4", "⏳");
+      
+      if (onTick) onTick(current, spinChars[tick % 4]);
+      
       tick++;
       await new Promise((r) => setTimeout(r, 1000));
     }
@@ -671,15 +682,17 @@
     }
     if (isRunning) return;
     log(LOG_LEVELS.info, `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`);
-    usw.ghostBotGui.setRunning(true);
+    
+    // Safety check for GUI access
+    if (usw.ghostBotGui) usw.ghostBotGui.setRunning(true);
+    
     stopWhileLoop = false;
     sessionStartTime = Date.now(); sessionPixelsPlaced = 0;
-    if (botConfig.mode === "maintain" && fixCounter === 0) usw.ghostBotGui.updateFixCount(0);
+    if (botConfig.mode === "maintain" && fixCounter === 0 && usw.ghostBotGui) usw.ghostBotGui.updateFixCount(0);
 
     while (!stopWhileLoop) {
       isPageVisible = true; await synchronize("full");
 
-      // Initial check before polling (mostly for logging/setup)
       let pixelsToPlace = getPixelsToPlace();
       const totalPixelsInTemplate = ghostPixelData ? ghostPixelData.length : 0;
 
@@ -689,15 +702,48 @@
           await new Promise((r) => setTimeout(r, 1000)); continue;
       }
 
-      // Initial progress update (safe due to >0 check in updateProgress)
-      usw.ghostBotGui.updateProgress(totalPixelsInTemplate, pixelsToPlace.length);
+      if (usw.ghostBotGui) usw.ghostBotGui.updateProgress(totalPixelsInTemplate, pixelsToPlace.length);
 
-      // Wait for energy (includes dynamic threshold check and continuous progress updates)
-      await pollForEnergy(() => stopWhileLoop || !isRunning);
-      if (stopWhileLoop || !isRunning) break;
+      // Define logic to check if we are ready to place
+      // This logic is used both for immediate check and inside the polling loop (via callback)
+      const checkReady = () => {
+          const currentEnergy = getCurrentEnergy();
+          const safeMaxEnergy = botConfig.maxEnergyLimit || 200;
+          const { shouldAct, target } = evaluateAction({ 
+              mode: botConfig.mode, 
+              currentEnergy: currentEnergy, 
+              pixelCount: pixelsToPlace.length, 
+              threshold: botConfig.energyThreshold, 
+              maxEnergy: safeMaxEnergy 
+          });
+          return { ready: shouldAct, target, current: currentEnergy };
+      };
 
-      // Re-fetch pixels after waiting (as they might have changed during wait)
-      pixelsToPlace = getPixelsToPlace();
+      let status = checkReady();
+
+      if (!status.ready) {
+          // Wait loop
+          // Using refactored pollForEnergy
+          await pollForEnergy(
+              () => stopWhileLoop || !isRunning || checkReady().ready, // Stop condition
+              (current, spinner) => {
+                  // Re-evaluate target for UI display (dynamic threshold support)
+                  const { target } = checkReady(); 
+                  
+                  // Also update progress bar during wait
+                  const currentPixels = getPixelsToPlace();
+                  if (usw.ghostBotGui) usw.ghostBotGui.updateProgress(totalPixelsInTemplate, currentPixels.length);
+                  
+                  updateGuiStatus(`充能中... ${spinner} (${current}/${target}) [Req: ${botConfig.energyThreshold}]`, "#1982c4", "⏳");
+              }
+          );
+          
+          if (stopWhileLoop || !isRunning) break;
+          
+          // Re-fetch pixels after waiting
+          pixelsToPlace = getPixelsToPlace();
+          status = checkReady(); // Re-evaluate status with new pixels
+      }
 
       if (pixelsToPlace.length === 0) {
         if (botConfig.mode === "build") {
@@ -712,10 +758,9 @@
         }
       }
 
-      const safeEnergy = getCurrentEnergy();
-      // Double check energy before sending to prevent errors
-      if (safeEnergy > 0) {
-        const countToSend = Math.min(safeEnergy, pixelsToPlace.length);
+      // Execution
+      if (status.ready) {
+        const countToSend = Math.min(status.current, pixelsToPlace.length);
         const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
 
         if (pixelsThisRequest.length > 0) {
@@ -726,18 +771,23 @@
             if (success) {
               sessionPixelsPlaced += pixelsThisRequest.length;
               const estimatedRemaining = pixelsToPlace.length - pixelsThisRequest.length;
-              usw.ghostBotGui.updateProgress(totalPixelsInTemplate, estimatedRemaining);
-              if (botConfig.mode === "maintain") { fixCounter += pixelsThisRequest.length; usw.ghostBotGui.updateFixCount(fixCounter); }
+              if (usw.ghostBotGui) usw.ghostBotGui.updateProgress(totalPixelsInTemplate, estimatedRemaining);
+              if (botConfig.mode === "maintain") { 
+                  fixCounter += pixelsThisRequest.length; 
+                  if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter); 
+              }
             }
         }
       }
 
       // Anti-stuck mechanism for 0 energy
+      const safeEnergy = getCurrentEnergy();
       if (typeof window.energyWaitStart === "undefined") window.energyWaitStart = Date.now();
       if (safeEnergy === 0 && Date.now() - window.energyWaitStart > 60000) window.energyWaitStart = Date.now();
       if (safeEnergy > 0) window.energyWaitStart = undefined;
     }
-    usw.ghostBotGui.setRunning(false);
+    
+    if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
   });
 
   usw.ghostBot = {
@@ -753,7 +803,7 @@
       stopWhileLoop = true; promiseResolve?.();
       log(LOG_LEVELS.info, "Stopping bot command received.");
       updateGuiStatus("已停止", "#ff595e", "🔴");
-      usw.ghostBotGui.setRunning(false);
+      if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
     },
     reload: () => setGhostPixelData(),
     config: botConfig,
