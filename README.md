@@ -11,16 +11,18 @@ Unlike the original script, this fork provides a full graphical interface and ad
 - **🖥️ Graphical User Interface (GUI):** No more typing commands in the console! Control everything from a sleek, draggable panel directly on the screen.
 - **🔨 Build Mode:** Automatically places pixels to complete your ghost image. Stops and sends a notification when the artwork is finished.
 - **🛡️ Maintain Mode:** After building, switch to this mode. It monitors your artwork indefinitely and instantly repairs any pixels that get griefed or covered.
-- **⚡ Smart Energy Management:** Configurable energy threshold. The bot waits efficiently and acts immediately when energy is ready.
+- **⚙️ Advanced Controls:** Toggle "Place Free Colors", "Transparent Pixels", and "Audio Alerts" directly from the UI.
+- **⚡ Smart Energy Management:** Configurable energy threshold. The bot waits efficiently and acts immediately when energy is ready. Includes API rate-limit protection.
 - **🌙 Background Running:** Optimized to run in background tabs without throttling, perfect for AFK farming.
-- **📊 Real-time Stats:** Visual progress bars, pixel counts, and repair statistics (in Maintain mode).
+- **📊 Real-time Stats:** Visual progress bars, pixel counts, ETA (Estimated Time of Arrival), and repair statistics.
 
 ## ✅ Project Status
 
 ### Completed Features
-- [x] **GUI Panel:** Complete control panel with status indicators.
+- [x] **GUI Panel:** Complete control panel with status indicators and draggable window.
 - [x] **Dual Modes:** Implemented `Build` and `Maintain` logic.
-- [x] **Energy Optimization:** Smart waiting logic to prevent API spam and maximize efficiency.
+- [x] **Advanced Settings:** Toggle Free Colors, Transparent Pixels, and Audio Alerts via GUI.
+- [x] **Energy Optimization:** Smart waiting logic with throttling and API backoff mechanisms.
 - [x] **Non-blocking Notifications:** Replaced annoying alerts with smooth toast notifications.
 - [x] **Background Execution:** Works even when the tab is not active.
 
@@ -28,12 +30,9 @@ Unlike the original script, this fork provides a full graphical interface and ad
 We are actively working on the following features. Feel free to contribute!
 
 - [ ] **Advanced GUI Settings:**
-    - Toggle "Place Transparent Pixels" via UI.
-    - Toggle "Place Free Colors" via UI.
     - Manage "Ignored Colors" list visually.
 - [ ] **Multi-Account Support:** Quickly switch between different user tokens/accounts for managing multiple bots.
 - [ ] **Viewport Independence:** (Original Author's Plan) Fix the limitation where the camera must be centered on the ghost image.
-- [ ] **Audio Alerts:** Optional sound notification when a build is complete.
 
 ## 📥 Installation
 
@@ -70,8 +69,9 @@ While the GUI covers most needs, the internal API is still accessible via the br
 
 Most settings are now adjustable directly in the GUI:
 
-- **Place Transparent Pixels:** (Internal setting, defaults to `false`)
-- **Place Free Colors:** (Internal setting, defaults to `true`)
+- **Place Transparent Pixels:** (GUI Checkbox)
+- **Place Free Colors:** (GUI Checkbox)
+- **Audio Alert:** (GUI Checkbox) Play a sound when build is complete.
 
 ## 🤝 Contributing
 

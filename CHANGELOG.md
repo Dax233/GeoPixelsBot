@@ -13,8 +13,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - auto buy upgrades
 - farm mode
 - viewport independence (fix camera centering requirement)
-- audio alerts
 - visual debugging overlay
+
+## [0.4.2] - 2025-11-22
+### Added
+- **Advanced GUI Settings:** Added checkboxes for "Place Free Colors", "Place Transparent", and "Audio Alerts" directly in the panel.
+- **ETA Display:** Added an Estimated Time of Arrival display to the stats panel, calculating time remaining based on placement speed.
+- **API Backoff:** Implemented smart handling for 429 (Rate Limit) errors and non-401 failures to prevent API spamming.
+- **Refresh Max Energy:** Added a button to manually re-sync the maximum energy limit from the game.
+- **Launcher Timeout:** Added a safety timeout to the UI injection loop to prevent memory leaks if the game UI fails to load.
+
+### Changed
+- **Architecture Decoupling:** Completely separated the Bot's runtime logic from the GUI. The bot can now continue running safely even if the UI fails to initialize or encounters errors.
+- **Network Logic:** Flattened the `sendPixels` function. Replaced recursive retries with a cleaner iterative loop to prevent stack overflows and improve readability.
+- **Performance:** Throttled the "pixels to place" calculation in the waiting loop (now runs every 5 seconds instead of every second) to reduce CPU usage during idle times.
+- **UX Improvements:** 
+    - Prevented text selection when dragging the panel.
+    - Unified the logic for slider and text input threshold settings.
+- **Config Safety:** Wrapped `localStorage` operations in try/catch blocks to prevent crashes in private browsing modes.
+
+### Fixed
+- Fixed a critical bug where the bot would stop running if the GUI was not present.
+- Fixed potential infinite loops in network retry logic.
+- Restored missing error logs for `Colors` and `tileImageCache` dependencies.
 
 ## [0.4.1] - 2025-11-21
 ### Added
