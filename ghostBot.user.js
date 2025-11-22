@@ -38,59 +38,76 @@
 
   let botConfig = { ...DEFAULT_CONFIG };
   try {
-      const saved = localStorage.getItem('ghostBotConfig_v2');
-      if (saved) botConfig = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
-  } catch (e) { console.error("Failed to load config", e); }
+    const saved = localStorage.getItem("ghostBotConfig_v2");
+    if (saved) botConfig = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+  } catch (e) {
+    console.error("Failed to load config", e);
+  }
 
   // Wrap localStorage write in try/catch
   const saveConfig = () => {
     try {
-      localStorage.setItem('ghostBotConfig_v2', JSON.stringify(botConfig));
+      localStorage.setItem("ghostBotConfig_v2", JSON.stringify(botConfig));
     } catch (e) {
-      console.warn("Failed to save config; continuing without persisting changes", e);
+      console.warn(
+        "Failed to save config; continuing without persisting changes",
+        e
+      );
     }
   };
 
   // Centralized config update helper
   const updateConfig = (key, value) => {
     botConfig[key] = value;
-
-    // Handle side effects
     if (key === "placeFree") {
-        usw.ghostBot.placeFreeColors = value;
-        usw.ghostBot.reload();
+      usw.ghostBot.placeFreeColors = value;
+      usw.ghostBot.reload();
     }
     if (key === "placeTransparent") {
-        usw.ghostBot.placeTransparentGhostPixels = value;
-        usw.ghostBot.reload();
+      usw.ghostBot.placeTransparentGhostPixels = value;
+      usw.ghostBot.reload();
     }
-    // "mode" side effects are handled in UI update logic or main loop checks
-
     saveConfig();
   };
 
   //#region Utils & Helpers
-  Number.prototype.iToH = function () { return this.toString(16).padStart(2, "0"); };
-  String.prototype.hToI = function () { return parseInt(this, 16); };
+  Number.prototype.iToH = function () {
+    return this.toString(16).padStart(2, "0");
+  };
+  String.prototype.hToI = function () {
+    return parseInt(this, 16);
+  };
   String.prototype.toFullHex = function () {
     let h = this.toLowerCase();
     if (!h.startsWith("#")) h = `#${h}`;
-    if (h.length === 4 || h.length === 5) h = "#" + [...h.slice(1)].map((c) => c + c).join("");
+    if (h.length === 4 || h.length === 5)
+      h = "#" + [...h.slice(1)].map((c) => c + c).join("");
     if (h.length === 7) h += "ff";
     return h;
   };
 
   class Color {
-    constructor(r, g, b, a = 255) { this.r = r; this.g = g; this.b = b; this.a = a; }
-    static fromObject(obj) { return new Color(obj.r, obj.g, obj.b, obj.a); }
+    constructor(r, g, b, a = 255) {
+      this.r = r;
+      this.g = g;
+      this.b = b;
+      this.a = a;
+    }
+    static fromObject(obj) {
+      return new Color(obj.r, obj.g, obj.b, obj.a);
+    }
     static fromHex(hex) {
       hex = hex.toFullHex();
-      const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      const r = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(
+        hex
+      );
       if (!r) throw new Error("Invalid hex color: " + hex);
       return new Color(r[1].hToI(), r[2].hToI(), r[3].hToI(), r[4].hToI());
     }
-    hex = () => `#${this.r.iToH()}${this.g.iToH()}${this.b.iToH()}${this.a.iToH()}`;
-    websiteId = () => this.a == 0 ? -1 : (this.r << 16) + (this.g << 8) + this.b;
+    hex = () =>
+      `#${this.r.iToH()}${this.g.iToH()}${this.b.iToH()}${this.a.iToH()}`;
+    websiteId = () =>
+      this.a == 0 ? -1 : (this.r << 16) + (this.g << 8) + this.b;
     val = () => this.websiteId();
   }
 
@@ -106,7 +123,12 @@
     success: { label: "SUC", color: "#00ff00" },
   };
   function log(lvl, ...args) {
-    console.log(`%c[ghostBot] %c[${lvl.label}]`, "color: rebeccapurple;", `color:${lvl.color};`, ...args);
+    console.log(
+      `%c[ghostBot] %c[${lvl.label}]`,
+      "color: rebeccapurple;",
+      `color:${lvl.color};`,
+      ...args
+    );
   }
 
   class ImageData {
@@ -119,13 +141,34 @@
     }
   }
 
-  const FREE_COLORS = ["#FFFFFF","#FFCA3A","#FF595E","#F3BBC2","#BD637D","#6A4C93","#A8D0DC","#1A535C","#1982C4","#8AC926","#6B4226","#CFD078","#8B1D24","#C49A6C","#000000","#00000000"].map((c) => Color.fromHex(c));
+  const FREE_COLORS = [
+    "#FFFFFF",
+    "#FFCA3A",
+    "#FF595E",
+    "#F3BBC2",
+    "#BD637D",
+    "#6A4C93",
+    "#A8D0DC",
+    "#1A535C",
+    "#1982C4",
+    "#8AC926",
+    "#6B4226",
+    "#CFD078",
+    "#8B1D24",
+    "#C49A6C",
+    "#000000",
+    "#00000000",
+  ].map((c) => Color.fromHex(c));
   const freeColorSet = new Set(FREE_COLORS.map((c) => c.val()));
 
   function withErrorHandling(asyncFn) {
     return async function (...args) {
-      try { return await asyncFn(...args); }
-      catch (e) { log(LOG_LEVELS.error, e.message); console.error(e); }
+      try {
+        return await asyncFn(...args);
+      } catch (e) {
+        log(LOG_LEVELS.error, e.message);
+        console.error(e);
+      }
     };
   }
 
@@ -151,16 +194,28 @@
     const ly = pixel.gridCoord.y - ty;
     if (lx < 0 || lx >= width || ly < 0 || ly >= height) return true;
     const idx = (ly * width + lx) * 4;
-    return (tileData[idx] !== pixel.color.r || tileData[idx + 1] !== pixel.color.g || tileData[idx + 2] !== pixel.color.b || tileData[idx + 3] !== pixel.color.a);
+    return (
+      tileData[idx] !== pixel.color.r ||
+      tileData[idx + 1] !== pixel.color.g ||
+      tileData[idx + 2] !== pixel.color.b ||
+      tileData[idx + 3] !== pixel.color.a
+    );
   }
 
   // Re-used evaluateAction for logic separation
-  function evaluateAction({ mode, currentEnergy, pixelCount, threshold, maxEnergy }) {
+  function evaluateAction({
+    mode,
+    currentEnergy,
+    pixelCount,
+    threshold,
+    maxEnergy,
+  }) {
     let target = 0;
     if (mode === "maintain") target = 1;
     else {
       const effectiveThreshold = Math.min(maxEnergy, threshold);
-      target = pixelCount >= effectiveThreshold ? effectiveThreshold : pixelCount;
+      target =
+        pixelCount >= effectiveThreshold ? effectiveThreshold : pixelCount;
       if (pixelCount > 0) target = Math.max(1, target);
     }
     return { shouldAct: currentEnergy >= target && pixelCount > 0, target };
@@ -173,24 +228,80 @@
       const ctx = new AudioContext();
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.type = 'sine';
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = "sine";
       osc.frequency.setValueAtTime(523.25, ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1);
       gain.gain.setValueAtTime(0.1, ctx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
-      osc.start(); osc.stop(ctx.currentTime + 0.8);
-    } catch (e) { console.error("Audio play failed", e); }
+      osc.start();
+      osc.stop(ctx.currentTime + 0.8);
+    } catch (e) {
+      console.error("Audio play failed", e);
+    }
+  };
+
+  // Notification function
+  const showCompletionNotification = (message) => {
+    const notification = document.createElement("div");
+    notification.className = "gb-notification";
+    notification.innerText = message;
+    document.body.appendChild(notification);
+    setTimeout(() => {
+      notification.style.transition = "opacity 0.5s";
+      notification.style.opacity = "0";
+      setTimeout(() => notification.remove(), 500);
+    }, 4000);
   };
 
   const detectMaxEnergy = () => {
-      if (typeof usw.maxEnergy !== 'undefined') return usw.maxEnergy;
-      if (typeof maxEnergy !== 'undefined') return maxEnergy;
-      return null;
+    if (typeof usw.maxEnergy !== "undefined") return usw.maxEnergy;
+    if (typeof maxEnergy !== "undefined") return maxEnergy;
+    return null;
+  };
+
+  // Effective Max Energy Logic
+  const getEffectiveMaxEnergy = () => {
+    const detected = detectMaxEnergy();
+    if (detected) return detected;
+    if (botConfig.maxEnergyLimit) return botConfig.maxEnergyLimit;
+    return 200;
+  };
+
+  // ETA Logic
+  const computeEta = (sessionStartTime, sessionPixelsPlaced, remaining) => {
+    if (!isRunning || sessionStartTime <= 0 || remaining <= 0)
+      return "ETA: --:--";
+
+    const elapsedSec = (Date.now() - sessionStartTime) / 1000;
+    if (sessionPixelsPlaced <= 2 || elapsedSec <= 5) return "ETA: 计算中...";
+
+    const pixelsPerSec = sessionPixelsPlaced / elapsedSec;
+    if (pixelsPerSec <= 0) return "ETA: ...";
+
+    const remainingSec = remaining / pixelsPerSec;
+    let etaStr;
+    if (remainingSec < 60) etaStr = `${Math.floor(remainingSec)}s`;
+    else if (remainingSec < 3600)
+      etaStr = `${Math.floor(remainingSec / 60)}m ${Math.floor(
+        remainingSec % 60
+      )}s`;
+    else if (remainingSec < 86400)
+      etaStr = `${Math.floor(remainingSec / 3600)}h ${Math.floor(
+        (remainingSec % 3600) / 60
+      )}m`;
+    else if (remainingSec < 15552000)
+      etaStr = `${Math.floor(remainingSec / 86400)}d ${Math.floor(
+        (remainingSec % 86400) / 3600
+      )}h`;
+    else etaStr = `> 180d`;
+
+    return `ETA: ${etaStr}`;
   };
   //#endregion
 
-  // --- GUI Styles & Components ---
+  // GUI Styles & Components
   const GUI_STYLES = `
     /* Launcher Button */
     #ghostBot-launcher {
@@ -336,61 +447,85 @@
     </div>
   `;
 
-  // --- UI Initialization ---
+  // UI Initialization
   const initLauncher = () => {
-      // Inject Styles
-      const style = document.createElement("style");
-      style.textContent = GUI_STYLES;
-      document.head.appendChild(style);
+    // Inject Styles
+    const style = document.createElement("style");
+    style.textContent = GUI_STYLES;
+    document.head.appendChild(style);
 
-      // Wait for #controls-left
-      const checkControls = setInterval(() => {
-          const controlsLeft = document.getElementById("controls-left");
-          if (controlsLeft) {
-              clearInterval(checkControls);
-              createLauncherButton(controlsLeft);
-              createPanel(); // Prepare panel but keep hidden
-          }
-      }, 500);
+    // Wait for #controls-left
+    const checkControls = setInterval(() => {
+      const controlsLeft = document.getElementById("controls-left");
+      if (controlsLeft) {
+        clearInterval(checkControls);
+        createLauncherButton(controlsLeft);
+        createPanel(); // Prepare panel but keep hidden
+      }
+    }, 500);
   };
 
   const createLauncherButton = (parent) => {
-      const btn = document.createElement("div");
-      btn.id = "ghostBot-launcher";
-      btn.innerHTML = "👻";
-      btn.title = "打开 GhostPixel Bot";
-      btn.onclick = () => {
-          const panel = document.getElementById("ghostBot-gui-panel");
-          if (panel) {
-              panel.classList.add("gb-visible");
-              btn.style.display = "none";
-              // Trigger max energy update when opening, ensuring data is loaded
-              if (usw.ghostBotGui && usw.ghostBotGui.refreshMax) usw.ghostBotGui.refreshMax();
-          }
-      };
-      parent.appendChild(btn);
+    const btn = document.createElement("div");
+    btn.id = "ghostBot-launcher";
+    btn.innerHTML = "👻";
+    btn.title = "打开 GhostPixel Bot";
+    btn.onclick = () => {
+      const panel = document.getElementById("ghostBot-gui-panel");
+      if (panel) {
+        panel.classList.add("gb-visible");
+        btn.style.display = "none";
+        // Trigger max energy update when opening, ensuring data is loaded
+        if (usw.ghostBotGui && usw.ghostBotGui.refreshMax)
+          usw.ghostBotGui.refreshMax();
+      }
+    };
+    parent.appendChild(btn);
   };
 
   // Split createPanel into smaller helpers
   const wirePanelDragging = (panel) => {
     const header = panel.querySelector(".gb-header");
-    let isDragging = false, startX, startY, initialLeft, initialTop;
+    let isDragging = false,
+      startX,
+      startY,
+      initialLeft,
+      initialTop;
     const onMove = (e) => {
       if (!isDragging) return;
       const rect = panel.getBoundingClientRect();
-      const winW = window.innerWidth, winH = window.innerHeight;
-      const newLeft = Math.min(Math.max(initialLeft + (e.clientX - startX), 0), winW - rect.width);
-      const newTop = Math.min(Math.max(initialTop + (e.clientY - startY), 0), winH - rect.height);
-      panel.style.left = `${newLeft}px`; panel.style.top = `${newTop}px`;
+      const winW = window.innerWidth,
+        winH = window.innerHeight;
+      const newLeft = Math.min(
+        Math.max(initialLeft + (e.clientX - startX), 0),
+        winW - rect.width
+      );
+      const newTop = Math.min(
+        Math.max(initialTop + (e.clientY - startY), 0),
+        winH - rect.height
+      );
+      panel.style.left = `${newLeft}px`;
+      panel.style.top = `${newTop}px`;
     };
-    const onUp = () => { isDragging = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+    const onUp = () => {
+      isDragging = false;
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
     header.addEventListener("mousedown", (e) => {
       if (e.target.closest(".gb-window-ctrls")) return;
-      isDragging = true; startX = e.clientX; startY = e.clientY;
-      const rect = panel.getBoundingClientRect(); initialLeft = rect.left; initialTop = rect.top;
-      panel.style.right = "auto"; panel.style.bottom = "auto";
-      panel.style.left = `${initialLeft}px`; panel.style.top = `${initialTop}px`;
-      document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      const rect = panel.getBoundingClientRect();
+      initialLeft = rect.left;
+      initialTop = rect.top;
+      panel.style.right = "auto";
+      panel.style.bottom = "auto";
+      panel.style.left = `${initialLeft}px`;
+      panel.style.top = `${initialTop}px`;
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
     });
   };
 
@@ -405,9 +540,9 @@
 
     // Close / Minimize Logic
     panel.querySelector(".gb-close").addEventListener("click", () => {
-        panel.classList.remove("gb-visible");
-        const launcher = document.getElementById("ghostBot-launcher");
-        if (launcher) launcher.style.display = "flex";
+      panel.classList.remove("gb-visible");
+      const launcher = document.getElementById("ghostBot-launcher");
+      if (launcher) launcher.style.display = "flex";
     });
     const minBtn = panel.querySelector(".gb-min-btn");
     minBtn.addEventListener("click", () => {
@@ -420,9 +555,9 @@
       if (e.target.id === "btn-start") if (usw.ghostBot) usw.ghostBot.start();
       if (e.target.id === "btn-stop") if (usw.ghostBot) usw.ghostBot.stop();
       if (e.target.id === "btn-refresh-max") {
-          if (usw.ghostBotGui) usw.ghostBotGui.refreshMax(true);
-          e.target.style.transform = "rotate(360deg)";
-          setTimeout(() => e.target.style.transform = "rotate(0deg)", 500);
+        if (usw.ghostBotGui) usw.ghostBotGui.refreshMax(true);
+        e.target.style.transform = "rotate(360deg)";
+        setTimeout(() => (e.target.style.transform = "rotate(0deg)"), 500);
       }
     });
 
@@ -430,26 +565,38 @@
     panel.addEventListener("change", (e) => {
       if (e.target.id === "bot-mode-select") {
         updateConfig("mode", e.target.value);
-        if (statsDiv) statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
+        if (statsDiv)
+          statsDiv.style.display =
+            botConfig.mode === "maintain" ? "block" : "none";
       }
-      if (e.target.id === "chk-free-color") updateConfig("placeFree", e.target.checked);
-      if (e.target.id === "chk-transparent") updateConfig("placeTransparent", e.target.checked);
-      if (e.target.id === "chk-audio") updateConfig("audioAlert", e.target.checked);
+      if (e.target.id === "chk-free-color")
+        updateConfig("placeFree", e.target.checked);
+      if (e.target.id === "chk-transparent")
+        updateConfig("placeTransparent", e.target.checked);
+      if (e.target.id === "chk-audio")
+        updateConfig("audioAlert", e.target.checked);
     });
 
-    if (thresholdSlider) thresholdSlider.addEventListener("input", (e) => {
-        const val = parseInt(e.target.value, 10);
-        if (thresholdInput) thresholdInput.value = val;
-        updateConfig("energyThreshold", val);
-    });
-    if (thresholdInput) thresholdInput.addEventListener("input", (e) => {
-        let val = parseInt(e.target.value, 10);
-        if (isNaN(val)) val = 1;
-        const currentMax = parseInt(thresholdInput.max, 10) || 200;
-        if (val > currentMax) val = currentMax;
-        if (thresholdSlider) thresholdSlider.value = val;
-        updateConfig("energyThreshold", val);
-    });
+    // Threshold setting logic
+    const setThreshold = (rawVal) => {
+      const max = getEffectiveMaxEnergy();
+      let val = parseInt(rawVal, 10);
+      if (isNaN(val) || val < 1) val = 1;
+      if (val > max) val = max;
+
+      if (thresholdInput) thresholdInput.value = val;
+      if (thresholdSlider) thresholdSlider.value = val;
+      updateConfig("energyThreshold", val);
+    };
+
+    if (thresholdSlider)
+      thresholdSlider.addEventListener("input", (e) =>
+        setThreshold(e.target.value)
+      );
+    if (thresholdInput)
+      thresholdInput.addEventListener("input", (e) =>
+        setThreshold(e.target.value)
+      );
 
     // Initial Values
     if (thresholdInput) thresholdInput.value = botConfig.energyThreshold;
@@ -458,7 +605,8 @@
     if (chkFree) chkFree.checked = botConfig.placeFree;
     if (chkTrans) chkTrans.checked = botConfig.placeTransparent;
     if (chkAudio) chkAudio.checked = botConfig.audioAlert;
-    if (statsDiv) statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
+    if (statsDiv)
+      statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
   };
 
   const createPanel = () => {
@@ -477,32 +625,30 @@
       const btnStop = panel.querySelector("#btn-stop");
       const modeSelect = panel.querySelector("#bot-mode-select");
       if (btnStart && btnStop && modeSelect) {
-        btnStart.disabled = running; btnStop.disabled = !running; modeSelect.disabled = running;
+        btnStart.disabled = running;
+        btnStop.disabled = !running;
+        modeSelect.disabled = running;
       }
     };
-    
+
     // Core: Update Max Energy & Clamp
     const updateMaxEnergyLimit = (forceSave = false) => {
-        const detected = detectMaxEnergy();
-        const newMax = detected || botConfig.maxEnergyLimit || 200;
+      const newMax = getEffectiveMaxEnergy();
+      if (forceSave) updateConfig("maxEnergyLimit", newMax);
 
-        if (detected || forceSave) {
-            updateConfig("maxEnergyLimit", newMax);
-        }
-        
-        const thresholdSlider = panel.querySelector("#energy-threshold-slider");
-        const thresholdInput = panel.querySelector("#energy-threshold-input");
+      const thresholdSlider = panel.querySelector("#energy-threshold-slider");
+      const thresholdInput = panel.querySelector("#energy-threshold-input");
 
-        if (thresholdSlider && thresholdInput) {
-            thresholdSlider.max = newMax;
-            thresholdInput.max = newMax;
-            if (botConfig.energyThreshold > newMax) {
-                updateConfig("energyThreshold", newMax);
-                thresholdSlider.value = newMax;
-                thresholdInput.value = newMax;
-            }
+      if (thresholdSlider && thresholdInput) {
+        thresholdSlider.max = newMax;
+        thresholdInput.max = newMax;
+        if (botConfig.energyThreshold > newMax) {
+          updateConfig("energyThreshold", newMax);
+          thresholdSlider.value = newMax;
+          thresholdInput.value = newMax;
         }
-        log(LOG_LEVELS.info, `Max energy synced: ${newMax}`);
+      }
+      log(LOG_LEVELS.info, `Max energy synced: ${newMax}`);
     };
 
     const fixCountDisplay = panel.querySelector("#fix-count-display");
@@ -514,8 +660,10 @@
     usw.ghostBotGui = {
       setRunning: setUiRunning,
       refreshMax: updateMaxEnergyLimit,
-      updateFixCount: (count) => { if (fixCountDisplay) fixCountDisplay.innerText = count; },
-      updateProgress: (total, remaining) => {
+      updateFixCount: (count) => {
+        if (fixCountDisplay) fixCountDisplay.innerText = count;
+      },
+      updateProgress: (total, remaining, etaText) => {
         if (!statsPixelCount) return;
         // 如果总数为0（数据未加载或异常），则不更新UI，避免闪烁0%
         if (total <= 0) return;
@@ -529,29 +677,10 @@
         statsProgressText.style.color = isComplete ? "#ffca3a" : "#1982c4";
         statsProgressBar.style.background = isComplete ? "#ffca3a" : "#1982c4";
 
-        if (isRunning && sessionStartTime > 0 && remaining > 0) {
-            const now = Date.now();
-            const elapsedSec = (now - sessionStartTime) / 1000;
-            if (sessionPixelsPlaced > 2 && elapsedSec > 5) {
-                const pixelsPerSec = sessionPixelsPlaced / elapsedSec;
-                if (pixelsPerSec > 0) {
-                    const remainingSec = remaining / pixelsPerSec;
-                    let etaStr = "";
-                    if (remainingSec < 60) etaStr = `${Math.floor(remainingSec)}s`;
-                    else if (remainingSec < 3600) etaStr = `${Math.floor(remainingSec/60)}m ${Math.floor(remainingSec%60)}s`;
-                    else if (remainingSec < 86400) etaStr = `${Math.floor(remainingSec/3600)}h ${Math.floor((remainingSec%3600)/60)}m`;
-                    else if (remainingSec < 15552000) etaStr = `${Math.floor(remainingSec/86400)}d ${Math.floor((remainingSec%86400)/3600)}h`; // < 180 days
-                    else etaStr = `> 180d`;
-
-                    // Safety check for statsEta
-                    if (statsEta) statsEta.innerText = `ETA: ${etaStr}`;
-                } else if (statsEta) statsEta.innerText = `ETA: ...`;
-            } else if (statsEta) statsEta.innerText = `ETA: 计算中...`;
-        } else if (!isRunning && statsEta) statsEta.innerText = `ETA: --:--`;
-        else if (remaining === 0 && statsEta) statsEta.innerText = `ETA: 完成`;
+        if (statsEta && etaText) statsEta.innerText = etaText;
       },
     };
-    
+
     // Initial sync
     updateMaxEnergyLimit();
   };
@@ -560,10 +689,20 @@
     const iconEl = document.getElementById("gb-status-icon");
     const textEl = document.getElementById("gb-status-text");
     if (iconEl) iconEl.innerText = icon;
-    if (textEl) { textEl.innerText = status; textEl.style.color = color; }
+    if (textEl) {
+      textEl.innerText = status;
+      textEl.style.color = color;
+    }
   };
 
-  if (gIdOnloadElement) GOOGLE_CLIENT_ID = gIdOnloadElement.getAttribute("data-client_id");
+  if (gIdOnloadElement) {
+    GOOGLE_CLIENT_ID = gIdOnloadElement.getAttribute("data-client_id");
+  } else {
+    log(
+      LOG_LEVELS.warn,
+      'Could not find the Google Sign-In element ("g_id_onload").'
+    );
+  }
 
   const tryRelog = withErrorHandling(async () => {
     tokenUser = "";
@@ -575,13 +714,19 @@
         google.accounts.id.initialize({
           client_id: GOOGLE_CLIENT_ID,
           callback: async (e) => {
-            const r = await fetch("/auth/google", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: e.credential }) });
-            if (!r.ok) return log(LOG_LEVELS.info, "Google authentication failed");
+            const r = await fetch("/auth/google", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token: e.credential }),
+            });
+            if (!r.ok)
+              return log(LOG_LEVELS.info, "Google authentication failed");
             const data = await r.json();
             await logIn(data);
             resolve();
           },
-          auto_select: true, context: "signin",
+          auto_select: true,
+          context: "signin",
         });
         google.accounts.id.prompt();
       });
@@ -590,26 +735,54 @@
   });
 
   const getGhostImageData = () => {
-    if (!ghostImage || !ghostImageOriginalData || !ghostImageTopLeft) return null;
+    if (!ghostImage || !ghostImageOriginalData || !ghostImageTopLeft)
+      return null;
     const data = [];
     for (let i = 0; i < ghostImageOriginalData.data.length; i += 4) {
-      data.push({ i: i / 4, r: ghostImageOriginalData.data[i], g: ghostImageOriginalData.data[i + 1], b: ghostImageOriginalData.data[i + 2], a: ghostImageOriginalData.data[i + 3] });
+      data.push({
+        i: i / 4,
+        r: ghostImageOriginalData.data[i],
+        g: ghostImageOriginalData.data[i + 1],
+        b: ghostImageOriginalData.data[i + 2],
+        a: ghostImageOriginalData.data[i + 3],
+      });
     }
-    return new ImageData(data, { x: ghostImageTopLeft.gridX, y: ghostImageTopLeft.gridY }, ghostImage);
+    return new ImageData(
+      data,
+      { x: ghostImageTopLeft.gridX, y: ghostImageTopLeft.gridY },
+      ghostImage
+    );
   };
 
   const orderGhostPixels = (pixels) => {
     const freqMap = new Map();
-    pixels.forEach((pixel) => { const val = pixel.color.val(); freqMap.set(val, (freqMap.get(val) || 0) + 1); });
-    return pixels.sort((a, b) => freqMap.get(a.color.val()) - freqMap.get(b.color.val()));
+    pixels.forEach((pixel) => {
+      const val = pixel.color.val();
+      freqMap.set(val, (freqMap.get(val) || 0) + 1);
+    });
+    return pixels.sort(
+      (a, b) => freqMap.get(a.color.val()) - freqMap.get(b.color.val())
+    );
   };
 
   const setGhostPixelData = () => {
     log(LOG_LEVELS.info, "Setting/Reloading ghost pixel data...");
-    const availableColorSet = new Set(Colors.map((c) => Color.fromHex(c).val()));
+    // Colors check
+    if (typeof Colors === "undefined" || !Array.isArray(Colors)) {
+      log(LOG_LEVELS.error, "Page's `Colors` variable not available.");
+      ghostPixelData = [];
+      return;
+    }
+
+    const availableColorSet = new Set(
+      Colors.map((c) => Color.fromHex(c).val())
+    );
     const imageData = getGhostImageData();
-    if (!imageData) { ghostPixelData = []; return; }
-    if (typeof Colors === "undefined" || !Array.isArray(Colors)) { ghostPixelData = []; return; }
+    if (!imageData) {
+      ghostPixelData = [];
+      return;
+    }
+
     ghostPixelData = imageData.data
       .filter(
         (d) =>
@@ -623,32 +796,71 @@
         const tileY = Math.floor(p.gridCoord.y / TILE_SIZE) * TILE_SIZE;
         return { ...p, tileX, tileY, tileKey: `${tileX},${tileY}` };
       });
-    log(LOG_LEVELS.info, `Filtered ghost pixels. Total: ${ghostPixelData.length}`);
+    log(
+      LOG_LEVELS.info,
+      `Filtered ghost pixels. Total: ${ghostPixelData.length}`
+    );
   };
 
   const getPixelsToPlace = () => {
     if (!ghostPixelData) setGhostPixelData();
     tilePixelCache.clear();
-    if (typeof tileImageCache === "undefined" || !(tileImageCache instanceof Map)) return [];
+    // tileImageCache check
+    if (
+      typeof tileImageCache === "undefined" ||
+      !(tileImageCache instanceof Map)
+    ) {
+      log(LOG_LEVELS.error, "Page's `tileImageCache` Map is not available.");
+      return [];
+    }
     const pixelsToPlace = [];
     if (ghostPixelData) {
-        for (const p of ghostPixelData) {
-          const tile = tileImageCache.get(p.tileKey);
-          if (tile?.colorBitmap) {
-            const tileData = getTileData(p.tileKey, tile.colorBitmap);
-            if (needsPlacing(p, p.tileKey, tileData, tile.colorBitmap.width, tile.colorBitmap.height)) pixelsToPlace.push(p);
-          } else pixelsToPlace.push(p);
-        }
+      for (const p of ghostPixelData) {
+        const tile = tileImageCache.get(p.tileKey);
+        if (tile?.colorBitmap) {
+          const tileData = getTileData(p.tileKey, tile.colorBitmap);
+          if (
+            needsPlacing(
+              p,
+              p.tileKey,
+              tileData,
+              tile.colorBitmap.width,
+              tile.colorBitmap.height
+            )
+          )
+            pixelsToPlace.push(p);
+        } else pixelsToPlace.push(p);
+      }
     }
     return orderGhostPixels(pixelsToPlace);
   };
 
-  const sendPixels = withErrorHandling(async (pixels) => {
+  // Infinite recursion protection
+  const sendPixels = withErrorHandling(async (pixels, retryCount = 0) => {
+    if (retryCount > 3) {
+      log(
+        LOG_LEVELS.error,
+        "Failed to place pixels after 3 retries. Stopping recursion."
+      );
+      return false;
+    }
     const r = await fetch("https://geopixels.net/PlacePixel", {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ Token: tokenUser, Subject: subject, UserId: userID, Pixels: pixels.map((c) => ({ ...c, UserId: userID })) }),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        Token: tokenUser,
+        Subject: subject,
+        UserId: userID,
+        Pixels: pixels.map((c) => ({ ...c, UserId: userID })),
+      }),
     });
-    if (!r.ok) { if (r.status == 401 && (await tryRelog())) await sendPixels(pixels); return false; }
+    if (!r.ok) {
+      log(LOG_LEVELS.warn, "Failed to place pixels: " + (await r.text()));
+      if (r.status == 401 && (await tryRelog())) {
+        return await sendPixels(pixels, retryCount + 1);
+      }
+      return false;
+    }
     return true;
   });
 
@@ -658,92 +870,118 @@
     return 0;
   };
 
-  // Refactored pollForEnergy to be simple and accept an onTick callback
-  const pollForEnergy = async (checkStop, onTick) => {
-    let tick = 0;
-    const spinChars = ["|", "/", "-", "\\"];
+  // Consolidated Wait Logic with Throttling
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    while (!checkStop()) {
-      const current = getCurrentEnergy();
-      
-      if (onTick) onTick(current, spinChars[tick % 4]);
-      
-      tick++;
-      await new Promise((r) => setTimeout(r, 1000));
+  async function waitForEnergyAndPixels(totalPixelsInTemplate) {
+    let throttleCounter = 0;
+    let lastPixels = getPixelsToPlace(); // Initial check
+
+    while (!stopWhileLoop && isRunning) {
+      const currentEnergy = getCurrentEnergy();
+      const safeMaxEnergy = getEffectiveMaxEnergy();
+
+      // Throttle expensive pixel calculation (every 5 ticks/seconds)
+      if (throttleCounter % 5 === 0) {
+        lastPixels = getPixelsToPlace();
+        // Update progress bar during wait
+        if (usw.ghostBotGui) {
+          const etaText = computeEta(
+            sessionStartTime,
+            sessionPixelsPlaced,
+            lastPixels.length
+          );
+          usw.ghostBotGui.updateProgress(
+            totalPixelsInTemplate,
+            lastPixels.length,
+            etaText
+          );
+        }
+      }
+
+      const { shouldAct, target } = evaluateAction({
+        mode: botConfig.mode,
+        currentEnergy,
+        pixelCount: lastPixels.length,
+        threshold: botConfig.energyThreshold,
+        maxEnergy: safeMaxEnergy,
+      });
+
+      if (shouldAct && lastPixels.length > 0) {
+        return { currentEnergy, pixelsToPlace: lastPixels }; // Ready
+      }
+
+      // UI Status Update (Waiting...)
+      const spinner = ["|", "/", "-", "\\"][throttleCounter % 4];
+      updateGuiStatus(
+        `充能中... ${spinner} (${currentEnergy}/${target}) [Req: ${botConfig.energyThreshold}]`,
+        "#1982c4",
+        "⏳"
+      );
+
+      throttleCounter++;
+      await sleep(1000);
     }
-  };
+    return null; // Stopped
+  }
 
   let stopWhileLoop = false;
   let promiseResolve;
 
   const startGhostBot = withErrorHandling(async () => {
     if (!ghostImage || !ghostImageOriginalData || !ghostImageTopLeft) {
-      log(LOG_LEVELS.warn, "Ghost image not loaded."); updateGuiStatus("Ghost 图未加载", "red", "❌"); return;
+      log(LOG_LEVELS.warn, "Ghost image not loaded.");
+      updateGuiStatus("Ghost 图未加载", "red", "❌");
+      return;
     }
     if (isRunning) return;
-    log(LOG_LEVELS.info, `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`);
-    
-    // Safety check for GUI access
+    log(
+      LOG_LEVELS.info,
+      `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`
+    );
+
     if (usw.ghostBotGui) usw.ghostBotGui.setRunning(true);
-    
+
     stopWhileLoop = false;
-    sessionStartTime = Date.now(); sessionPixelsPlaced = 0;
-    if (botConfig.mode === "maintain" && fixCounter === 0 && usw.ghostBotGui) usw.ghostBotGui.updateFixCount(0);
+    sessionStartTime = Date.now();
+    sessionPixelsPlaced = 0;
+    if (botConfig.mode === "maintain" && fixCounter === 0 && usw.ghostBotGui)
+      usw.ghostBotGui.updateFixCount(0);
 
     while (!stopWhileLoop) {
-      isPageVisible = true; await synchronize("full");
+      isPageVisible = true;
+      await synchronize("full");
 
       let pixelsToPlace = getPixelsToPlace();
       const totalPixelsInTemplate = ghostPixelData ? ghostPixelData.length : 0;
 
       if (totalPixelsInTemplate === 0) {
-          log(LOG_LEVELS.warn, "Ghost data empty, retrying...");
-          updateGuiStatus("等待数据...", "yellow", "⚠️");
-          await new Promise((r) => setTimeout(r, 1000)); continue;
+        log(LOG_LEVELS.warn, "Ghost data empty, retrying...");
+        updateGuiStatus("等待数据...", "yellow", "⚠️");
+        await sleep(1000);
+        continue;
       }
 
-      if (usw.ghostBotGui) usw.ghostBotGui.updateProgress(totalPixelsInTemplate, pixelsToPlace.length);
-
-      // Define logic to check if we are ready to place
-      // This logic is used both for immediate check and inside the polling loop (via callback)
-      const checkReady = () => {
-          const currentEnergy = getCurrentEnergy();
-          const safeMaxEnergy = botConfig.maxEnergyLimit || 200;
-          const { shouldAct, target } = evaluateAction({ 
-              mode: botConfig.mode, 
-              currentEnergy: currentEnergy, 
-              pixelCount: pixelsToPlace.length, 
-              threshold: botConfig.energyThreshold, 
-              maxEnergy: safeMaxEnergy 
-          });
-          return { ready: shouldAct, target, current: currentEnergy };
-      };
-
-      let status = checkReady();
-
-      if (!status.ready) {
-          // Wait loop
-          // Using refactored pollForEnergy
-          await pollForEnergy(
-              () => stopWhileLoop || !isRunning || checkReady().ready, // Stop condition
-              (current, spinner) => {
-                  // Re-evaluate target for UI display (dynamic threshold support)
-                  const { target } = checkReady(); 
-                  
-                  // Also update progress bar during wait
-                  const currentPixels = getPixelsToPlace();
-                  if (usw.ghostBotGui) usw.ghostBotGui.updateProgress(totalPixelsInTemplate, currentPixels.length);
-                  
-                  updateGuiStatus(`充能中... ${spinner} (${current}/${target}) [Req: ${botConfig.energyThreshold}]`, "#1982c4", "⏳");
-              }
-          );
-          
-          if (stopWhileLoop || !isRunning) break;
-          
-          // Re-fetch pixels after waiting
-          pixelsToPlace = getPixelsToPlace();
-          status = checkReady(); // Re-evaluate status with new pixels
+      // Initial progress update
+      if (usw.ghostBotGui) {
+        const etaText = computeEta(
+          sessionStartTime,
+          sessionPixelsPlaced,
+          pixelsToPlace.length
+        );
+        usw.ghostBotGui.updateProgress(
+          totalPixelsInTemplate,
+          pixelsToPlace.length,
+          etaText
+        );
       }
+
+      // Use centralized wait function
+      const readyState = await waitForEnergyAndPixels(totalPixelsInTemplate);
+      if (!readyState) break; // Stopped
+
+      const { currentEnergy, pixelsToPlace: readyPixels } = readyState;
+      pixelsToPlace = readyPixels;
 
       if (pixelsToPlace.length === 0) {
         if (botConfig.mode === "build") {
@@ -751,42 +989,72 @@
           updateGuiStatus("画作已完成！", "#ffca3a", "✨");
           if (botConfig.audioAlert) playNotificationSound();
           showCompletionNotification("GhostPixel Bot: 建造完成！");
-          usw.ghostBot.stop(); break;
+          usw.ghostBot.stop();
+          break;
         } else {
           updateGuiStatus("监控中... 画面完美", "#8ac926", "🛡️");
-          await new Promise((r) => setTimeout(r, 5000)); continue;
+          await sleep(5000);
+          continue;
         }
       }
 
       // Execution
-      if (status.ready) {
-        const countToSend = Math.min(status.current, pixelsToPlace.length);
-        const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
+      const countToSend = Math.min(currentEnergy, pixelsToPlace.length);
+      const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
 
-        if (pixelsThisRequest.length > 0) {
-            updateGuiStatus(`正在绘制 ${pixelsThisRequest.length} 个点...`, "#A8D0DC", "🖌️");
-            const success = await sendPixels(pixelsThisRequest.map((d) => ({ GridX: d.gridCoord.x, GridY: d.gridCoord.y, Color: d.color.websiteId() })));
+      if (pixelsThisRequest.length > 0) {
+        updateGuiStatus(
+          `正在绘制 ${pixelsThisRequest.length} 个点...`,
+          "#A8D0DC",
+          "🖌️"
+        );
+        const success = await sendPixels(
+          pixelsThisRequest.map((d) => ({
+            GridX: d.gridCoord.x,
+            GridY: d.gridCoord.y,
+            Color: d.color.websiteId(),
+          }))
+        );
 
-            if (!tokenUser) { updateGuiStatus("已登出", "orange", "⚠️"); usw.ghostBot.stop(); break; }
-            if (success) {
-              sessionPixelsPlaced += pixelsThisRequest.length;
-              const estimatedRemaining = pixelsToPlace.length - pixelsThisRequest.length;
-              if (usw.ghostBotGui) usw.ghostBotGui.updateProgress(totalPixelsInTemplate, estimatedRemaining);
-              if (botConfig.mode === "maintain") { 
-                  fixCounter += pixelsThisRequest.length; 
-                  if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter); 
-              }
-            }
+        if (!tokenUser) {
+          updateGuiStatus("已登出", "orange", "⚠️");
+          usw.ghostBot.stop();
+          break;
+        }
+        if (success) {
+          sessionPixelsPlaced += pixelsThisRequest.length;
+          const estimatedRemaining =
+            pixelsToPlace.length - pixelsThisRequest.length;
+
+          if (usw.ghostBotGui) {
+            const etaText = computeEta(
+              sessionStartTime,
+              sessionPixelsPlaced,
+              estimatedRemaining
+            );
+            usw.ghostBotGui.updateProgress(
+              totalPixelsInTemplate,
+              estimatedRemaining,
+              etaText
+            );
+          }
+
+          if (botConfig.mode === "maintain") {
+            fixCounter += pixelsThisRequest.length;
+            if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter);
+          }
         }
       }
 
       // Anti-stuck mechanism for 0 energy
       const safeEnergy = getCurrentEnergy();
-      if (typeof window.energyWaitStart === "undefined") window.energyWaitStart = Date.now();
-      if (safeEnergy === 0 && Date.now() - window.energyWaitStart > 60000) window.energyWaitStart = Date.now();
+      if (typeof window.energyWaitStart === "undefined")
+        window.energyWaitStart = Date.now();
+      if (safeEnergy === 0 && Date.now() - window.energyWaitStart > 60000)
+        window.energyWaitStart = Date.now();
       if (safeEnergy > 0) window.energyWaitStart = undefined;
     }
-    
+
     if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
   });
 
@@ -800,7 +1068,8 @@
     }),
     start: startGhostBot,
     stop: () => {
-      stopWhileLoop = true; promiseResolve?.();
+      stopWhileLoop = true;
+      promiseResolve?.();
       log(LOG_LEVELS.info, "Stopping bot command received.");
       updateGuiStatus("已停止", "#ff595e", "🔴");
       if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
@@ -809,7 +1078,8 @@
     config: botConfig,
   };
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initLauncher);
+  if (document.readyState === "loading")
+    document.addEventListener("DOMContentLoaded", initLauncher);
   else initLauncher();
 
   log(LOG_LEVELS.info, "GhostPixel Bot v0.4.2 Loaded.");
