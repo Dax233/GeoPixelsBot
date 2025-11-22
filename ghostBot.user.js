@@ -20,13 +20,13 @@
   const gIdOnloadElement = document.getElementById("g_id_onload");
   let GOOGLE_CLIENT_ID;
 
-  // --- 运行时状态 ---
+  // 运行时状态
   let isRunning = false;
   let fixCounter = 0;
   let sessionStartTime = 0;
   let sessionPixelsPlaced = 0;
 
-  // --- 配置管理 ---
+  // 配置管理
   const DEFAULT_CONFIG = {
     energyThreshold: 10,
     maxEnergyLimit: 200,
@@ -125,7 +125,7 @@
     warn: { label: "WRN", color: "yellow" },
     success: { label: "SUC", color: "#00ff00" },
   };
-  function log(lvl, ...args) {
+  const log = (lvl, ...args) => {
     console.log(
       `%c[ghostBot] %c[${lvl.label}]`,
       "color: rebeccapurple;",
@@ -164,7 +164,7 @@
   ].map((c) => Color.fromHex(c));
   const freeColorSet = new Set(FREE_COLORS.map((c) => c.val()));
 
-  function withErrorHandling(asyncFn) {
+  const withErrorHandling = (asyncFn) => {
     return async function (...args) {
       try {
         return await asyncFn(...args);
@@ -180,7 +180,7 @@
   const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
   const tilePixelCache = new Map();
 
-  function getTileData(tileKey, bitmap) {
+  const getTileData = (tileKey, bitmap) => {
     if (!tilePixelCache.has(tileKey)) {
       offscreen.width = bitmap.width;
       offscreen.height = bitmap.height;
@@ -191,7 +191,7 @@
     return tilePixelCache.get(tileKey);
   }
 
-  function needsPlacing(pixel, tileKey, tileData, width, height) {
+  const needsPlacing = (pixel, tileKey, tileData, width, height) => {
     const [tx, ty] = tileKey.split(",").map(Number);
     const lx = pixel.gridCoord.x - tx;
     const ly = pixel.gridCoord.y - ty;
@@ -205,14 +205,13 @@
     );
   }
 
-  // Re-used evaluateAction for logic separation
-  function evaluateAction({
+  const evaluateAction = ({
     mode,
     currentEnergy,
     pixelCount,
     threshold,
     maxEnergy,
-  }) {
+  }) => {
     let target = 0;
     if (mode === "maintain") target = 1;
     else {
@@ -245,7 +244,6 @@
     }
   };
 
-  // Notification function
   const showCompletionNotification = (message) => {
     const notification = document.createElement("div");
     notification.className = "gb-notification";
@@ -258,19 +256,40 @@
     }, 4000);
   };
 
-  const detectMaxEnergy = () => {
-    if (typeof usw.maxEnergy !== "undefined") return usw.maxEnergy;
-    if (typeof maxEnergy !== "undefined") return maxEnergy;
-    return null;
-  };
+  // Centralized Max Energy Logic
+  const MaxEnergy = (() => {
+    let cached = null;
 
-  // Effective Max Energy Logic
-  const getEffectiveMaxEnergy = () => {
-    const detected = detectMaxEnergy();
-    if (detected) return detected;
-    if (botConfig.maxEnergyLimit) return botConfig.maxEnergyLimit;
-    return 200;
-  };
+    const detect = () => {
+      if (typeof usw.maxEnergy !== "undefined") return usw.maxEnergy;
+      if (typeof maxEnergy !== "undefined") return maxEnergy;
+      return null;
+    };
+
+    const get = () => {
+      if (cached !== null) return cached;
+      const detected = detect();
+      // Use detected if available, otherwise fallback to config or 200
+      cached =
+        (botConfig.maxEnergyLimit &&
+          Math.min(
+            botConfig.maxEnergyLimit,
+            detected || botConfig.maxEnergyLimit
+          )) ||
+        detected ||
+        200;
+      return cached;
+    };
+
+    const refresh = (forceSave = false) => {
+      cached = null; // force re-detect
+      const value = get();
+      if (forceSave) updateConfig("maxEnergyLimit", value);
+      return value;
+    };
+
+    return { get, refresh };
+  })();
   //#endregion
 
   // GUI Styles & Components
@@ -421,7 +440,6 @@
 
   // UI Initialization
   const initLauncher = () => {
-    // Inject Styles
     const style = document.createElement("style");
     style.textContent = GUI_STYLES;
     document.head.appendChild(style);
@@ -566,7 +584,7 @@
 
     // [Unified] Threshold setting logic
     const setThreshold = (rawVal) => {
-      const max = getEffectiveMaxEnergy();
+      const max = MaxEnergy.get();
       let val = parseInt(rawVal, 10);
       if (isNaN(val) || val < 1) val = 1;
       if (val > max) val = max;
@@ -630,9 +648,8 @@
     wirePanelDragging(panel);
     wirePanelControls(panel);
 
-    // Expose GUI methods
-    const setUiRunning = (running) => {
-      isRunning = running;
+    // Only updates UI elements, does NOT control logic `isRunning`
+    const updateGuiState = (running) => {
       const btnStart = panel.querySelector("#btn-start");
       const btnStop = panel.querySelector("#btn-stop");
       const modeSelect = panel.querySelector("#bot-mode-select");
@@ -645,8 +662,7 @@
 
     // Core: Update Max Energy & Clamp
     const updateMaxEnergyLimit = (forceSave = false) => {
-      const newMax = getEffectiveMaxEnergy();
-      if (forceSave) updateConfig("maxEnergyLimit", newMax);
+      const newMax = MaxEnergy.refresh(forceSave);
 
       const thresholdSlider = panel.querySelector("#energy-threshold-slider");
       const thresholdInput = panel.querySelector("#energy-threshold-input");
@@ -670,7 +686,7 @@
     const statsEta = panel.querySelector("#stats-eta");
 
     usw.ghostBotGui = {
-      setRunning: setUiRunning,
+      setRunning: updateGuiState, // Renamed to reflect visual-only nature
       refreshMax: updateMaxEnergyLimit,
       updateFixCount: (count) => {
         if (fixCountDisplay) fixCountDisplay.innerText = count;
@@ -853,35 +869,50 @@
     return orderGhostPixels(pixelsToPlace);
   };
 
-  // sendPixels now returns status object for better flow control
-  const sendPixels = withErrorHandling(async (pixels, retryCount = 0) => {
-    if (retryCount > 3) {
-      log(
-        LOG_LEVELS.error,
-        "Failed to place pixels after 3 retries. Stopping recursion."
-      );
-      return { success: false, status: -1 };
-    }
-    const r = await fetch("https://geopixels.net/PlacePixel", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        Token: tokenUser,
-        Subject: subject,
-        UserId: userID,
-        Pixels: pixels.map((c) => ({ ...c, UserId: userID })),
-      }),
-    });
+  // Flattened sendPixels with Iterative Retry Logic
+  const sendPixels = async (pixels) => {
+    const MAX_RETRIES = 3;
+    let lastStatus = -1;
+    let lastHeaders = null;
 
-    if (!r.ok) {
-      log(LOG_LEVELS.warn, "Failed to place pixels: " + (await r.text()));
-      if (r.status == 401 && (await tryRelog())) {
-        return await sendPixels(pixels, retryCount + 1);
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        const r = await fetch("https://geopixels.net/PlacePixel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            Token: tokenUser,
+            Subject: subject,
+            UserId: userID,
+            Pixels: pixels.map((c) => ({ ...c, UserId: userID })),
+          }),
+        });
+
+        lastStatus = r.status;
+        lastHeaders = r.headers;
+
+        if (r.ok) {
+          return { success: true, status: 200, headers: r.headers };
+        }
+
+        log(LOG_LEVELS.warn, "Failed to place pixels: " + (await r.text()));
+
+        if (r.status === 401 && (await tryRelog())) {
+          // retry immediately in next loop iteration
+          continue;
+        }
+
+        // Non-401 errors: stop retry loop
+        break;
+      } catch (e) {
+        log(LOG_LEVELS.error, e.message);
+        console.error(e);
+        await sleep(1000); // Short backoff on network error
       }
-      return { success: false, status: r.status, headers: r.headers };
     }
-    return { success: true, status: 200 };
-  });
+
+    return { success: false, status: lastStatus, headers: lastHeaders };
+  }
 
   const getCurrentEnergy = () => {
     if (typeof usw.currentEnergy !== "undefined") return usw.currentEnergy;
@@ -890,13 +921,13 @@
   };
 
   // Wait Logic with Throttling & Initial Pixels
-  async function waitForEnergyAndPixels(initialPixels, totalPixelsInTemplate) {
+  const waitForEnergyAndPixels = async (initialPixels, totalPixelsInTemplate) => {
     let throttleCounter = 0;
     let lastPixels = initialPixels;
 
     while (!stopWhileLoop && isRunning) {
       const currentEnergy = getCurrentEnergy();
-      const safeMaxEnergy = getEffectiveMaxEnergy();
+      const safeMaxEnergy = MaxEnergy.get();
 
       // Throttle expensive pixel calculation (every 5 ticks/seconds)
       if (throttleCounter > 0 && throttleCounter % 5 === 0) {
@@ -961,11 +992,14 @@
       return;
     }
     if (isRunning) return;
+
     log(
       LOG_LEVELS.info,
       `Starting Ghost Bot in [${botConfig.mode.toUpperCase()}] mode...`
     );
 
+    // Master switch ON
+    isRunning = true;
     if (usw.ghostBotGui) usw.ghostBotGui.setRunning(true);
 
     stopWhileLoop = false;
@@ -974,7 +1008,7 @@
     if (botConfig.mode === "maintain" && fixCounter === 0 && usw.ghostBotGui)
       usw.ghostBotGui.updateFixCount(0);
 
-    while (!stopWhileLoop) {
+    while (!stopWhileLoop && isRunning) {
       isPageVisible = true;
       await synchronize("full");
 
@@ -1014,7 +1048,11 @@
           updateGuiStatus("画作已完成！", "#ffca3a", "✨");
           if (botConfig.audioAlert) playNotificationSound();
           showCompletionNotification("GhostPixel Bot: 建造完成！");
-          usw.ghostBot.stop();
+
+          // Stop sequence
+          stopWhileLoop = true;
+          isRunning = false;
+          if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
           break;
         } else {
           updateGuiStatus("监控中... 画面完美", "#8ac926", "🛡️");
@@ -1045,7 +1083,10 @@
 
         if (!tokenUser) {
           updateGuiStatus("已登出", "orange", "⚠️");
-          usw.ghostBot.stop();
+          // Stop sequence
+          stopWhileLoop = true;
+          isRunning = false;
+          if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
           break;
         }
 
@@ -1082,6 +1123,8 @@
       if (safeEnergy > 0) window.energyWaitStart = undefined;
     }
 
+    // Ensure UI resets if loop exits
+    isRunning = false;
     if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
   });
 
@@ -1096,6 +1139,7 @@
     start: startGhostBot,
     stop: () => {
       stopWhileLoop = true;
+      isRunning = false;
       promiseResolve?.();
       log(LOG_LEVELS.info, "Stopping bot command received.");
       updateGuiStatus("已停止", "#ff595e", "🔴");
