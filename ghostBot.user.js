@@ -56,21 +56,24 @@
     }
   };
 
-  // Centralized config update helper
+  // Decoupled Config Logic
+  // 1. Update state & persist
   const updateConfig = (key, value) => {
     botConfig[key] = value;
-    if (key === "placeFree") {
-      usw.ghostBot.placeFreeColors = value;
-      usw.ghostBot.reload();
-    }
-    if (key === "placeTransparent") {
-      usw.ghostBot.placeTransparentGhostPixels = value;
-      usw.ghostBot.reload();
-    }
     saveConfig();
   };
 
+  // 2. Apply config to runtime bot instance
+  const applyConfigToBot = () => {
+    if (!usw.ghostBot) return;
+    usw.ghostBot.placeFreeColors = botConfig.placeFree;
+    usw.ghostBot.placeTransparentGhostPixels = botConfig.placeTransparent;
+    usw.ghostBot.reload();
+  };
+
   //#region Utils & Helpers
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
   Number.prototype.iToH = function () {
     return this.toString(16).padStart(2, "0");
   };
@@ -268,37 +271,6 @@
     if (botConfig.maxEnergyLimit) return botConfig.maxEnergyLimit;
     return 200;
   };
-
-  // ETA Logic
-  const computeEta = (sessionStartTime, sessionPixelsPlaced, remaining) => {
-    if (!isRunning || sessionStartTime <= 0 || remaining <= 0)
-      return "ETA: --:--";
-
-    const elapsedSec = (Date.now() - sessionStartTime) / 1000;
-    if (sessionPixelsPlaced <= 2 || elapsedSec <= 5) return "ETA: 计算中...";
-
-    const pixelsPerSec = sessionPixelsPlaced / elapsedSec;
-    if (pixelsPerSec <= 0) return "ETA: ...";
-
-    const remainingSec = remaining / pixelsPerSec;
-    let etaStr;
-    if (remainingSec < 60) etaStr = `${Math.floor(remainingSec)}s`;
-    else if (remainingSec < 3600)
-      etaStr = `${Math.floor(remainingSec / 60)}m ${Math.floor(
-        remainingSec % 60
-      )}s`;
-    else if (remainingSec < 86400)
-      etaStr = `${Math.floor(remainingSec / 3600)}h ${Math.floor(
-        (remainingSec % 3600) / 60
-      )}m`;
-    else if (remainingSec < 15552000)
-      etaStr = `${Math.floor(remainingSec / 86400)}d ${Math.floor(
-        (remainingSec % 86400) / 3600
-      )}h`;
-    else etaStr = `> 180d`;
-
-    return `ETA: ${etaStr}`;
-  };
   //#endregion
 
   // GUI Styles & Components
@@ -454,13 +426,22 @@
     style.textContent = GUI_STYLES;
     document.head.appendChild(style);
 
-    // Wait for #controls-left
+    // Launcher polling with timeout/max attempts
+    let attempts = 0;
+    const MAX_ATTEMPTS = 60; // 30 seconds
     const checkControls = setInterval(() => {
       const controlsLeft = document.getElementById("controls-left");
       if (controlsLeft) {
         clearInterval(checkControls);
         createLauncherButton(controlsLeft);
         createPanel(); // Prepare panel but keep hidden
+        applyConfigToBot(); // Apply config once bot/ui is ready
+      } else if (++attempts > MAX_ATTEMPTS) {
+        clearInterval(checkControls);
+        log(
+          LOG_LEVELS.warn,
+          "Could not find #controls-left after 30s. Launcher not injected."
+        );
       }
     }, 500);
   };
@@ -514,6 +495,8 @@
     };
     header.addEventListener("mousedown", (e) => {
       if (e.target.closest(".gb-window-ctrls")) return;
+      // Prevent text selection during drag
+      e.preventDefault();
       isDragging = true;
       startX = e.clientX;
       startY = e.clientY;
@@ -561,7 +544,7 @@
       }
     });
 
-    // Use updateConfig helper
+    // Use updateConfig & applyConfigToBot
     panel.addEventListener("change", (e) => {
       if (e.target.id === "bot-mode-select") {
         updateConfig("mode", e.target.value);
@@ -569,15 +552,19 @@
           statsDiv.style.display =
             botConfig.mode === "maintain" ? "block" : "none";
       }
-      if (e.target.id === "chk-free-color")
+      if (e.target.id === "chk-free-color") {
         updateConfig("placeFree", e.target.checked);
-      if (e.target.id === "chk-transparent")
+        applyConfigToBot();
+      }
+      if (e.target.id === "chk-transparent") {
         updateConfig("placeTransparent", e.target.checked);
+        applyConfigToBot();
+      }
       if (e.target.id === "chk-audio")
         updateConfig("audioAlert", e.target.checked);
     });
 
-    // Threshold setting logic
+    // [Unified] Threshold setting logic
     const setThreshold = (rawVal) => {
       const max = getEffectiveMaxEnergy();
       let val = parseInt(rawVal, 10);
@@ -607,6 +594,31 @@
     if (chkAudio) chkAudio.checked = botConfig.audioAlert;
     if (statsDiv)
       statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
+  };
+
+  // ETA calculation helper moved inside GUI logic
+  const computeEta = (sessionStartTime, sessionPixelsPlaced, remaining) => {
+    if (!isRunning || sessionStartTime <= 0 || remaining <= 0)
+      return "ETA: --:--";
+    const elapsedSec = (Date.now() - sessionStartTime) / 1000;
+    if (sessionPixelsPlaced <= 2 || elapsedSec <= 5) return "ETA: 计算中...";
+    const pixelsPerSec = sessionPixelsPlaced / elapsedSec;
+    if (pixelsPerSec <= 0) return "ETA: ...";
+    const remainingSec = remaining / pixelsPerSec;
+    if (remainingSec < 60) return `ETA: ${Math.floor(remainingSec)}s`;
+    if (remainingSec < 3600)
+      return `ETA: ${Math.floor(remainingSec / 60)}m ${Math.floor(
+        remainingSec % 60
+      )}s`;
+    if (remainingSec < 86400)
+      return `ETA: ${Math.floor(remainingSec / 3600)}h ${Math.floor(
+        (remainingSec % 3600) / 60
+      )}m`;
+    if (remainingSec < 15552000)
+      return `ETA: ${Math.floor(remainingSec / 86400)}d ${Math.floor(
+        (remainingSec % 86400) / 3600
+      )}h`;
+    return `ETA: > 180d`;
   };
 
   const createPanel = () => {
@@ -663,21 +675,27 @@
       updateFixCount: (count) => {
         if (fixCountDisplay) fixCountDisplay.innerText = count;
       },
-      updateProgress: (total, remaining, etaText) => {
+
+      // UpdateProgress now takes an object payload and handles ETA internally
+      updateProgress: ({ total, remaining, sessionStart, placed }) => {
         if (!statsPixelCount) return;
-        // 如果总数为0（数据未加载或异常），则不更新UI，避免闪烁0%
         if (total <= 0) return;
 
-        const placed = total - remaining;
-        const pct = total > 0 ? ((placed / total) * 100).toFixed(1) : "0.0";
-        statsPixelCount.innerText = `${placed} / ${total}`;
+        const placedCount = total - remaining;
+        const pct =
+          total > 0 ? ((placedCount / total) * 100).toFixed(1) : "0.0";
+        statsPixelCount.innerText = `${placedCount} / ${total}`;
         statsProgressText.innerText = `${pct}%`;
         statsProgressBar.style.width = `${pct}%`;
-        const isComplete = pct === "100.0";
-        statsProgressText.style.color = isComplete ? "#ffca3a" : "#1982c4";
-        statsProgressBar.style.background = isComplete ? "#ffca3a" : "#1982c4";
 
-        if (statsEta && etaText) statsEta.innerText = etaText;
+        const isComplete = pct === "100.0";
+        const color = isComplete ? "#ffca3a" : "#1982c4";
+        statsProgressText.style.color = color;
+        statsProgressBar.style.background = color;
+
+        if (statsEta) {
+          statsEta.innerText = computeEta(sessionStart, placed, remaining);
+        }
       },
     };
 
@@ -835,14 +853,14 @@
     return orderGhostPixels(pixelsToPlace);
   };
 
-  // Infinite recursion protection
+  // sendPixels now returns status object for better flow control
   const sendPixels = withErrorHandling(async (pixels, retryCount = 0) => {
     if (retryCount > 3) {
       log(
         LOG_LEVELS.error,
         "Failed to place pixels after 3 retries. Stopping recursion."
       );
-      return false;
+      return { success: false, status: -1 };
     }
     const r = await fetch("https://geopixels.net/PlacePixel", {
       method: "POST",
@@ -854,14 +872,15 @@
         Pixels: pixels.map((c) => ({ ...c, UserId: userID })),
       }),
     });
+
     if (!r.ok) {
       log(LOG_LEVELS.warn, "Failed to place pixels: " + (await r.text()));
       if (r.status == 401 && (await tryRelog())) {
         return await sendPixels(pixels, retryCount + 1);
       }
-      return false;
+      return { success: false, status: r.status, headers: r.headers };
     }
-    return true;
+    return { success: true, status: 200 };
   });
 
   const getCurrentEnergy = () => {
@@ -870,32 +889,26 @@
     return 0;
   };
 
-  // Consolidated Wait Logic with Throttling
-  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-  async function waitForEnergyAndPixels(totalPixelsInTemplate) {
+  // Wait Logic with Throttling & Initial Pixels
+  async function waitForEnergyAndPixels(initialPixels, totalPixelsInTemplate) {
     let throttleCounter = 0;
-    let lastPixels = getPixelsToPlace(); // Initial check
+    let lastPixels = initialPixels;
 
     while (!stopWhileLoop && isRunning) {
       const currentEnergy = getCurrentEnergy();
       const safeMaxEnergy = getEffectiveMaxEnergy();
 
       // Throttle expensive pixel calculation (every 5 ticks/seconds)
-      if (throttleCounter % 5 === 0) {
+      if (throttleCounter > 0 && throttleCounter % 5 === 0) {
         lastPixels = getPixelsToPlace();
         // Update progress bar during wait
         if (usw.ghostBotGui) {
-          const etaText = computeEta(
-            sessionStartTime,
-            sessionPixelsPlaced,
-            lastPixels.length
-          );
-          usw.ghostBotGui.updateProgress(
-            totalPixelsInTemplate,
-            lastPixels.length,
-            etaText
-          );
+          usw.ghostBotGui.updateProgress({
+            total: totalPixelsInTemplate,
+            remaining: lastPixels.length,
+            sessionStart: sessionStartTime,
+            placed: sessionPixelsPlaced,
+          });
         }
       }
 
@@ -924,6 +937,19 @@
     }
     return null; // Stopped
   }
+
+  // API Backoff Helper
+  const handleApiBackoff = async (status, headers) => {
+    if (status === 429) {
+      const retryAfter = headers ? headers.get("Retry-After") : null;
+      const waitMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 5000;
+      log(LOG_LEVELS.warn, `Rate limited (429). Waiting ${waitMs}ms...`);
+      await sleep(waitMs);
+    } else if (status !== 401) {
+      // General error backoff
+      await sleep(1000);
+    }
+  };
 
   let stopWhileLoop = false;
   let promiseResolve;
@@ -962,22 +988,21 @@
         continue;
       }
 
-      // Initial progress update
+      // Initial progress update using new object payload
       if (usw.ghostBotGui) {
-        const etaText = computeEta(
-          sessionStartTime,
-          sessionPixelsPlaced,
-          pixelsToPlace.length
-        );
-        usw.ghostBotGui.updateProgress(
-          totalPixelsInTemplate,
-          pixelsToPlace.length,
-          etaText
-        );
+        usw.ghostBotGui.updateProgress({
+          total: totalPixelsInTemplate,
+          remaining: pixelsToPlace.length,
+          sessionStart: sessionStartTime,
+          placed: sessionPixelsPlaced,
+        });
       }
 
-      // Use centralized wait function
-      const readyState = await waitForEnergyAndPixels(totalPixelsInTemplate);
+      // Pass initial pixels to avoid double calculation
+      const readyState = await waitForEnergyAndPixels(
+        pixelsToPlace,
+        totalPixelsInTemplate
+      );
       if (!readyState) break; // Stopped
 
       const { currentEnergy, pixelsToPlace: readyPixels } = readyState;
@@ -1008,7 +1033,9 @@
           "#A8D0DC",
           "🖌️"
         );
-        const success = await sendPixels(
+
+        // Handle API response object
+        const result = await sendPixels(
           pixelsThisRequest.map((d) => ({
             GridX: d.gridCoord.x,
             GridY: d.gridCoord.y,
@@ -1021,28 +1048,28 @@
           usw.ghostBot.stop();
           break;
         }
-        if (success) {
+
+        if (result.success) {
           sessionPixelsPlaced += pixelsThisRequest.length;
           const estimatedRemaining =
             pixelsToPlace.length - pixelsThisRequest.length;
 
           if (usw.ghostBotGui) {
-            const etaText = computeEta(
-              sessionStartTime,
-              sessionPixelsPlaced,
-              estimatedRemaining
-            );
-            usw.ghostBotGui.updateProgress(
-              totalPixelsInTemplate,
-              estimatedRemaining,
-              etaText
-            );
+            usw.ghostBotGui.updateProgress({
+              total: totalPixelsInTemplate,
+              remaining: estimatedRemaining,
+              sessionStart: sessionStartTime,
+              placed: sessionPixelsPlaced,
+            });
           }
 
           if (botConfig.mode === "maintain") {
             fixCounter += pixelsThisRequest.length;
             if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter);
           }
+        } else {
+          // API Backoff logic
+          await handleApiBackoff(result.status, result.headers);
         }
       }
 
