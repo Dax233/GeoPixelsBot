@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GhostPixel Bot (Dax233's Fork)
 // @namespace    https://github.com/Dax233
-// @version      0.4.1
+// @version      0.4.2
 // @description  A bot to place pixels from the ghost image on https://geopixels.net
 // @author       Dax233 (Original by nymtuta)
 // @match        https://*.geopixels.net/*
@@ -177,7 +177,34 @@ function evaluateAction({
   return { shouldAct, target };
 }
 
-// Extracted Styles and HTML for cleaner main script
+// Audio Helper
+const playNotificationSound = () => {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.type = "sine";
+    // Simple "Ding" effect: High pitch fading out
+    osc.frequency.setValueAtTime(523.25, ctx.currentTime); // C5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.1); // A5
+
+    gain.gain.setValueAtTime(0.1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.8);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.8);
+  } catch (e) {
+    console.error("Audio play failed", e);
+  }
+};
+
+// GUI Styles & HTML
 const GUI_STYLES = `
   #ghostBot-gui-panel {
       position: fixed; top: 50px; right: 20px; width: 300px;
@@ -188,52 +215,24 @@ const GUI_STYLES = `
       font-size: 13px;
       transition: height 0.3s ease, width 0.3s ease, padding 0.3s ease;
   }
-  
-  /* Minimized State Styles */
-  #ghostBot-gui-panel.gb-minimized {
-      width: auto;
-      min-width: 200px;
-      padding-bottom: 6px;
-  }
-
-  /* Responsive: Minimized panel on very small screens */
+  #ghostBot-gui-panel.gb-minimized { width: auto; min-width: 200px; padding-bottom: 6px; }
   @media (max-width: 350px) {
-    #ghostBot-gui-panel.gb-minimized {
-      min-width: 120px;
-      max-width: 95vw;
-      padding-bottom: 3px;
-    }
-    #ghostBot-gui-panel.gb-minimized .gb-header {
-      font-size: 12px;
-      padding-bottom: 0;
-    }
+    #ghostBot-gui-panel.gb-minimized { min-width: 120px; max-width: 95vw; }
   }
-  #ghostBot-gui-panel.gb-minimized .gb-content {
-      display: none;
-  }
-  #ghostBot-gui-panel.gb-minimized .gb-header {
-      margin-bottom: 0;
-      border-bottom: none;
-      padding-bottom: 0;
-  }
+  #ghostBot-gui-panel.gb-minimized .gb-content { display: none; }
+  #ghostBot-gui-panel.gb-minimized .gb-header { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
 
   .gb-header {
       display:flex; justify-content:space-between; align-items:center; 
       margin-bottom:12px; border-bottom:1px solid #555; padding-bottom:8px;
-      cursor: move; /* Draggable cursor */
-      user-select: none;
+      cursor: move; user-select: none;
   }
-  
   .gb-window-ctrls { display:flex; align-items:center; gap: 12px; }
-  .gb-min-btn { cursor:pointer; color:#888; font-weight:bold; font-size: 14px; }
-  .gb-min-btn:hover { color: #fff; }
-  
+  .gb-min-btn, .gb-close { cursor:pointer; color:#888; font-weight:bold; font-size: 14px; }
+  .gb-min-btn:hover, .gb-close:hover { color: #fff; }
   .gb-title { margin:0; font-size:16px; color:#a8d0dc; font-weight:bold; }
   .gb-ver { font-size:10px; color:#666; }
-  .gb-close { font-size:16px; cursor:pointer; color:#888; font-weight:bold; }
-  .gb-close:hover { color: #fff; }
-  
-  .gb-content { display: block; } /* Wrapper for collapsible content */
+  .gb-content { display: block; }
 
   #ghost-status-line {
       margin-bottom:12px; font-size:14px; font-weight:bold; 
@@ -242,11 +241,23 @@ const GUI_STYLES = `
   
   .gb-controls { display:flex; gap:10px; margin-bottom:10px; }
   .gb-ctrl-group { display:flex; flex-direction:column; }
-  .gb-label { margin-bottom:4px; color:#ccc; }
+  .gb-label { margin-bottom:4px; color:#ccc; font-size: 12px; }
   .gb-input { 
       width:100%; background:#333; color:white; 
       border:1px solid #555; border-radius:4px; padding:4px; box-sizing:border-box;
   }
+
+  /* New Settings Section */
+  .gb-settings {
+      background: #252530; border: 1px solid #3d3d4d; border-radius: 4px;
+      padding: 8px; margin-bottom: 10px;
+  }
+  .gb-setting-row {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 4px;
+  }
+  .gb-setting-row:last-child { margin-bottom: 0; }
+  .gb-checkbox { cursor: pointer; }
   
   .gb-stats {
       background:#1a1a24; padding:10px; border-radius:6px; 
@@ -259,11 +270,9 @@ const GUI_STYLES = `
   
   .gb-stat-item { font-size:12px; margin-bottom:5px; }
   .gb-stat-val { font-family:monospace; color:#eee; }
+  #stats-eta { font-size: 11px; color: #888; text-align: right; margin-top: -4px; margin-bottom: 6px; }
   
-  #maintain-stats { 
-      display:none; border-top:1px solid #333; 
-      padding-top:5px; margin-top:5px; 
-  }
+  #maintain-stats { display:none; border-top:1px solid #333; padding-top:5px; margin-top:5px; }
   
   .gb-actions { display:flex; gap:8px; }
   .gb-btn {
@@ -272,7 +281,6 @@ const GUI_STYLES = `
   }
   .gb-btn-start { background:#1982c4; color:white; }
   .gb-btn-start:disabled { background:#444; color:#aaa; cursor:not-allowed; }
-  
   .gb-btn-stop { background:#8b1d24; color:white; }
   .gb-btn-stop:disabled { background:#444; color:#aaa; cursor:not-allowed; }
 
@@ -294,7 +302,7 @@ const GUI_STYLES = `
 const GUI_HTML = `
   <div id="ghostBot-gui-panel">
     <div class="gb-header">
-      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4.1</span></h3>
+      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4.2</span></h3>
       <div class="gb-window-ctrls">
         <span class="gb-min-btn" title="最小化/还原">_</span>
         <span class="gb-close" title="关闭">✕</span>
@@ -305,6 +313,7 @@ const GUI_HTML = `
           <span id="gb-status-icon">🔴</span>
           <span id="gb-status-text"> 状态: 已停止</span>
         </div>
+        
         <div class="gb-controls">
           <div class="gb-ctrl-group" style="flex:1">
             <label class="gb-label">运行模式:</label>
@@ -318,6 +327,22 @@ const GUI_HTML = `
             <input id="energy-threshold-input" type="number" class="gb-input" min="1" max="200">
           </div>
         </div>
+
+        <div class="gb-settings">
+             <div class="gb-setting-row">
+                <label class="gb-label" for="chk-free-color" title="是否绘制白色/黑色等常见背景色">绘制免费/背景色</label>
+                <input type="checkbox" id="chk-free-color" class="gb-checkbox">
+            </div>
+            <div class="gb-setting-row">
+                <label class="gb-label" for="chk-transparent" title="是否尝试绘制透明像素(通常不需要)">绘制透明层</label>
+                <input type="checkbox" id="chk-transparent" class="gb-checkbox">
+            </div>
+            <div class="gb-setting-row">
+                <label class="gb-label" for="chk-audio" title="任务完成时播放提示音">完成提示音</label>
+                <input type="checkbox" id="chk-audio" class="gb-checkbox">
+            </div>
+        </div>
+
         <div class="gb-stats">
           <div class="gb-row-between gb-progress-meta">
             <span style="color:#bbb">进度</span>
@@ -326,6 +351,7 @@ const GUI_HTML = `
           <div class="gb-progress-track">
             <div id="stats-progress-bar"></div>
           </div>
+          <div id="stats-eta">ETA: --:--</div>
           <div class="gb-row-between gb-stat-item">
             <span style="color:#bbb">🖌️ 像素完成度</span>
             <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
@@ -356,15 +382,33 @@ const GUI_HTML = `
   // 状态变量
   let isRunning = false;
   let fixCounter = 0;
+  let startTime = 0;
+  let initialPixelsToPlace = 0;
 
-  // GUI 配置对象
-  const botConfig = {
-    energyThreshold: 10, // 默认攒 10 点能量
-    mode: "build", // "build" | "maintain"
-    autoRestart: true,
+  // 配置管理 (v0.4.2 新增)
+  const DEFAULT_CONFIG = {
+    energyThreshold: 10,
+    mode: "build",
+    placeTransparent: false,
+    placeFree: true,
+    audioAlert: false,
   };
 
-  // Notification Helper (DOM Helper)
+  // 加载配置
+  let botConfig = { ...DEFAULT_CONFIG };
+  try {
+    const saved = localStorage.getItem("ghostBotConfig_v2");
+    if (saved) {
+      botConfig = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
+    }
+  } catch (e) {
+    console.error("Failed to load config", e);
+  }
+
+  const saveConfig = () => {
+    localStorage.setItem("ghostBotConfig_v2", JSON.stringify(botConfig));
+  };
+
   const showCompletionNotification = (message) => {
     const notification = document.createElement("div");
     notification.className = "gb-notification";
@@ -383,32 +427,39 @@ const GUI_HTML = `
   const createGUI = () => {
     if (document.getElementById("ghostBot-gui-panel")) return;
 
-    // 1. 注入样式
     const style = document.createElement("style");
     style.textContent = GUI_STYLES;
     document.head.appendChild(style);
 
-    // 2. 构建面板
     const wrapper = document.createElement("div");
     wrapper.innerHTML = GUI_HTML;
     const panel = wrapper.firstElementChild;
 
-    // 设置初始值
+    // 初始化 UI 值
     const thresholdInput = panel.querySelector("#energy-threshold-input");
+    const modeSelect = panel.querySelector("#bot-mode-select");
+    const chkFree = panel.querySelector("#chk-free-color");
+    const chkTrans = panel.querySelector("#chk-transparent");
+    const chkAudio = panel.querySelector("#chk-audio");
+    const statsDiv = panel.querySelector("#maintain-stats");
+
     if (thresholdInput) thresholdInput.value = botConfig.energyThreshold;
+    if (modeSelect) modeSelect.value = botConfig.mode;
+    if (chkFree) chkFree.checked = botConfig.placeFree;
+    if (chkTrans) chkTrans.checked = botConfig.placeTransparent;
+    if (chkAudio) chkAudio.checked = botConfig.audioAlert;
+    if (statsDiv)
+      statsDiv.style.display = botConfig.mode === "maintain" ? "block" : "none";
 
     document.body.appendChild(panel);
 
-    // 3. 内联拖拽逻辑
+    // 拖拽逻辑
     const header = panel.querySelector(".gb-header");
-    header.style.cursor = "move";
-
     let isDragging = false,
       startX,
       startY,
       initialLeft,
       initialTop;
-
     const onMove = (e) => {
       if (!isDragging) return;
       const dx = e.clientX - startX;
@@ -416,24 +467,19 @@ const GUI_HTML = `
       const rect = panel.getBoundingClientRect();
       const winW = window.innerWidth,
         winH = window.innerHeight;
-
-      // 简单的边界限制
       const newLeft = Math.min(
         Math.max(initialLeft + dx, 0),
         winW - rect.width
       );
       const newTop = Math.min(Math.max(initialTop + dy, 0), winH - rect.height);
-
       panel.style.left = `${newLeft}px`;
       panel.style.top = `${newTop}px`;
     };
-
     const onUp = () => {
       isDragging = false;
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-
     header.addEventListener("mousedown", (e) => {
       if (e.target.closest(".gb-window-ctrls")) return;
       isDragging = true;
@@ -442,13 +488,10 @@ const GUI_HTML = `
       const rect = panel.getBoundingClientRect();
       initialLeft = rect.left;
       initialTop = rect.top;
-
-      // 切换到绝对定位
       panel.style.right = "auto";
       panel.style.bottom = "auto";
       panel.style.left = `${initialLeft}px`;
       panel.style.top = `${initialTop}px`;
-
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
       e.preventDefault();
@@ -467,52 +510,60 @@ const GUI_HTML = `
       panel.style.top = `${Math.max(0, t)}px`;
     });
 
-    // 4. 内联窗口控制逻辑
+    // 窗口控制
     panel
       .querySelector(".gb-close")
       .addEventListener("click", () => panel.remove());
-
     const minBtn = panel.querySelector(".gb-min-btn");
-    const minimizeIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="12" width="10" height="2" fill="currentColor"/></svg>`;
-    const restoreIcon = `<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect x="3" y="4" width="10" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="5" y="6" width="6" height="4" fill="currentColor"/></svg>`;
-
-    minBtn.innerHTML = minimizeIcon;
-    minBtn.title = "Minimize";
-
     minBtn.addEventListener("click", () => {
       panel.classList.toggle("gb-minimized");
-      const isMin = panel.classList.contains("gb-minimized");
-      minBtn.innerHTML = isMin ? restoreIcon : minimizeIcon;
-      minBtn.title = isMin ? "Restore" : "Minimize";
+      minBtn.innerText = panel.classList.contains("gb-minimized") ? "□" : "_";
     });
 
-    // 5. 主要控件事件委托
+    // 事件委托 - 控制与设置
     panel.addEventListener("click", (e) => {
       if (e.target.id === "btn-start") if (usw.ghostBot) usw.ghostBot.start();
       if (e.target.id === "btn-stop") if (usw.ghostBot) usw.ghostBot.stop();
     });
 
     panel.addEventListener("change", (e) => {
+      // 基础设置
       if (e.target.id === "bot-mode-select") {
         botConfig.mode = e.target.value;
-        const stats = panel.querySelector("#maintain-stats");
-        if (stats)
-          stats.style.display =
+        if (statsDiv)
+          statsDiv.style.display =
             botConfig.mode === "maintain" ? "block" : "none";
-        log(
-          LOG_LEVELS.info,
-          `模式已切换为: ${e.target.options[e.target.selectedIndex].text}`
-        );
+        saveConfig();
+        log(LOG_LEVELS.info, `模式已切换: ${botConfig.mode}`);
       }
       if (e.target.id === "energy-threshold-input") {
         let val = parseInt(e.target.value, 10);
         if (val < 1) val = 1;
         botConfig.energyThreshold = val;
         log(LOG_LEVELS.info, `能量阈值已更新为: ${val}`);
+        saveConfig();
+      }
+
+      // 高级设置 (v0.4.2)
+      if (e.target.id === "chk-free-color") {
+        botConfig.placeFree = e.target.checked;
+        usw.ghostBot.placeFreeColors = botConfig.placeFree; // 同步
+        usw.ghostBot.reload();
+        saveConfig();
+      }
+      if (e.target.id === "chk-transparent") {
+        botConfig.placeTransparent = e.target.checked;
+        usw.ghostBot.placeTransparentGhostPixels = botConfig.placeTransparent; // 同步
+        usw.ghostBot.reload();
+        saveConfig();
+      }
+      if (e.target.id === "chk-audio") {
+        botConfig.audioAlert = e.target.checked;
+        saveConfig();
       }
     });
 
-    // UI 更新方法
+    // UI 更新接口
     const setUiRunning = (running) => {
       isRunning = running;
       const btnStart = panel.querySelector("#btn-start");
@@ -529,13 +580,13 @@ const GUI_HTML = `
     const statsProgressText = panel.querySelector("#stats-progress-text");
     const statsProgressBar = panel.querySelector("#stats-progress-bar");
     const statsPixelCount = panel.querySelector("#stats-pixel-count");
+    const statsEta = panel.querySelector("#stats-eta");
 
     usw.ghostBotGui = {
       setRunning: setUiRunning,
       updateFixCount: (count) => {
         if (fixCountDisplay) fixCountDisplay.innerText = count;
       },
-      // 移除缓存，直接更新
       updateProgress: (total, remaining) => {
         if (!statsPixelCount) return;
         const placed = total - remaining;
@@ -549,6 +600,33 @@ const GUI_HTML = `
         const color = isComplete ? "#ffca3a" : "#1982c4";
         statsProgressText.style.color = color;
         statsProgressBar.style.background = color;
+
+        // ETA Calculation
+        if (isRunning && startTime > 0 && placed > 0 && remaining > 0) {
+          const now = Date.now();
+          const elapsedSec = (now - startTime) / 1000;
+          const placedSinceStart = initialPixelsToPlace - remaining;
+
+          if (placedSinceStart > 5) {
+            // Wait for some data
+            const pixelsPerSec = placedSinceStart / elapsedSec;
+            const remainingSec = remaining / pixelsPerSec;
+
+            let etaStr = "";
+            if (remainingSec < 60) etaStr = `${Math.floor(remainingSec)}s`;
+            else if (remainingSec < 3600)
+              etaStr = `${Math.floor(remainingSec / 60)}m ${Math.floor(
+                remainingSec % 60
+              )}s`;
+            else etaStr = `> 1h`;
+
+            statsEta.innerText = `ETA: ${etaStr}`;
+          } else {
+            statsEta.innerText = `ETA: 计算中...`;
+          }
+        } else if (!isRunning) {
+          statsEta.innerText = `ETA: --:--`;
+        }
       },
     };
   };
@@ -648,11 +726,14 @@ const GUI_HTML = `
       ghostPixelData = [];
       return;
     }
+
     if (typeof Colors === "undefined" || !Array.isArray(Colors)) {
       log(LOG_LEVELS.error, "Page's `Colors` variable not available.");
       ghostPixelData = [];
       return;
     }
+
+    // 使用配置中的 boolean 值
     ghostPixelData = imageData.data
       .filter(
         (d) =>
@@ -724,15 +805,12 @@ const GUI_HTML = `
       log(LOG_LEVELS.info, `Placed ${pixels.length} pixels.`);
       return true;
     }
+    return true;
   });
 
-  // 修复：恢复健壮的能量读取逻辑，增加回退机制
   const getCurrentEnergy = () => {
-    // 1. 尝试读取 unsafeWindow 上的变量
     if (typeof usw.currentEnergy !== "undefined") return usw.currentEnergy;
-    // 2. 回退：尝试读取全局作用域变量 (某些脚本管理器环境)
     if (typeof currentEnergy !== "undefined") return currentEnergy;
-    // 3. 失败：返回 0
     return 0;
   };
 
@@ -740,16 +818,11 @@ const GUI_HTML = `
   const pollForEnergy = async (targetEnergy, checkStop) => {
     let tick = 0;
     const spinChars = ["|", "/", "-", "\\"];
-
     while (!checkStop()) {
       const current = getCurrentEnergy();
-
       if (current >= targetEnergy) return;
-
-      // 视觉反馈：旋转的游标，证明脚本正在运行
-      const spinner = spinChars[tick % 4];
       updateGuiStatus(
-        `充能中... ${spinner} (${current}/${targetEnergy})`,
+        `充能中... ${spinChars[tick % 4]} (${current}/${targetEnergy})`,
         "#1982c4",
         "⏳"
       );
@@ -769,7 +842,6 @@ const GUI_HTML = `
       updateGuiStatus("Ghost 图未加载", "red", "❌");
       return;
     }
-
     if (isRunning) return;
 
     log(
@@ -778,6 +850,13 @@ const GUI_HTML = `
     );
     usw.ghostBotGui.setRunning(true);
     stopWhileLoop = false;
+
+    // Reset counters for ETA
+    startTime = Date.now();
+
+    // 初次计算总量
+    const initialList = getPixelsToPlace();
+    initialPixelsToPlace = initialList.length;
 
     if (botConfig.mode === "maintain" && fixCounter === 0) {
       usw.ghostBotGui.updateFixCount(0);
@@ -801,9 +880,11 @@ const GUI_HTML = `
           // 建造模式：任务完成，停止
           log(LOG_LEVELS.success, `Build Complete!`);
           updateGuiStatus("画作已完成！", "#ffca3a", "✨");
-          usw.ghostBot.stop();
-          // Replace alert with non-blocking notification
+
+          if (botConfig.audioAlert) playNotificationSound();
           showCompletionNotification("GhostPixel Bot: 建造完成！");
+
+          usw.ghostBot.stop();
           break;
         } else {
           // 维护模式：等待并重试
@@ -895,8 +976,8 @@ const GUI_HTML = `
   });
 
   usw.ghostBot = {
-    placeTransparentGhostPixels: false,
-    placeFreeColors: true,
+    placeTransparentGhostPixels: botConfig.placeTransparent,
+    placeFreeColors: botConfig.placeFree,
     ignoreColors: withErrorHandling((input, sep = ",") => {
       const colorList = Array.isArray(input) ? input : input.split(sep);
       ignoredColors = new Set(colorList.map((c) => Color.fromHex(c).val()));
@@ -924,5 +1005,5 @@ const GUI_HTML = `
     ensureSingleGUI();
   }
 
-  log(LOG_LEVELS.info, "GhostPixel Bot v0.4 Loaded.");
+  log(LOG_LEVELS.info, "GhostPixel Bot v0.4.2 Loaded.");
 })();
