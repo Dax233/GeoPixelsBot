@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GhostPixel Bot (Dax233's Fork)
 // @namespace    https://github.com/Dax233
-// @version      0.4.2
+// @version      0.4.3
 // @description  A bot to place pixels from the ghost image on https://geopixels.net
 // @author       Dax233 (Original by nymtuta)
 // @match        https://*.geopixels.net/*
@@ -1063,54 +1063,68 @@
 
       // Execution
       const countToSend = Math.min(currentEnergy, pixelsToPlace.length);
+      // 先截取出当前能量允许发送的安全总数
       const pixelsThisRequest = pixelsToPlace.slice(0, countToSend);
+      const MAX_BATCH_SIZE = 5000;
 
-      if (pixelsThisRequest.length > 0) {
-        updateGuiStatus(
-          `正在绘制 ${pixelsThisRequest.length} 个点...`,
-          "#A8D0DC",
-          "🖌️"
-        );
+      // 对安全总数按 MAX_BATCH_SIZE 进行分批处理
+      for (let i = 0; i < pixelsThisRequest.length; i += MAX_BATCH_SIZE) {
+        if (!isRunning || stopWhileLoop) break;
 
-        // Handle API response object
-        const result = await sendPixels(
-          pixelsThisRequest.map((d) => ({
-            GridX: d.gridCoord.x,
-            GridY: d.gridCoord.y,
-            Color: d.color.websiteId(),
-          }))
-        );
+        const chunk = pixelsThisRequest.slice(i, i + MAX_BATCH_SIZE);
 
-        if (!tokenUser) {
-          updateGuiStatus("已登出", "orange", "⚠️");
-          // Stop sequence
-          stopWhileLoop = true;
-          isRunning = false;
-          if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
-          break;
-        }
+        if (chunk.length > 0) {
+          updateGuiStatus(
+            `正在绘制 ${chunk.length} 个点 (批次 ${Math.floor(i / MAX_BATCH_SIZE) + 1})...`,
+            "#A8D0DC",
+            "🖌️"
+          );
 
-        if (result.success) {
-          sessionPixelsPlaced += pixelsThisRequest.length;
-          const estimatedRemaining =
-            pixelsToPlace.length - pixelsThisRequest.length;
+          // Handle API response object
+          const result = await sendPixels(
+            chunk.map((d) => ({
+              GridX: d.gridCoord.x,
+              GridY: d.gridCoord.y,
+              Color: d.color.websiteId(),
+            }))
+          );
 
-          if (usw.ghostBotGui) {
-            usw.ghostBotGui.updateProgress({
-              total: totalPixelsInTemplate,
-              remaining: estimatedRemaining,
-              sessionStart: sessionStartTime,
-              placed: sessionPixelsPlaced,
-            });
+          if (!tokenUser) {
+            updateGuiStatus("已登出", "orange", "⚠️");
+            // Stop sequence
+            stopWhileLoop = true;
+            isRunning = false;
+            if (usw.ghostBotGui) usw.ghostBotGui.setRunning(false);
+            break;
           }
 
-          if (botConfig.mode === "maintain") {
-            fixCounter += pixelsThisRequest.length;
-            if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter);
+          if (result.success) {
+            sessionPixelsPlaced += chunk.length;
+            const estimatedRemaining = pixelsToPlace.length - (i + chunk.length);
+
+            if (usw.ghostBotGui) {
+              usw.ghostBotGui.updateProgress({
+                total: totalPixelsInTemplate,
+                remaining: Math.max(0, estimatedRemaining),
+                sessionStart: sessionStartTime,
+                placed: sessionPixelsPlaced,
+              });
+            }
+
+            if (botConfig.mode === "maintain") {
+              fixCounter += chunk.length;
+              if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter);
+            }
+            
+            // 分批发送之间添加短暂延迟，避免突发流量被判定为滥用
+            if (i + MAX_BATCH_SIZE < pixelsThisRequest.length) {
+               await sleep(500); 
+            }
+          } else {
+            // API Backoff logic
+            await handleApiBackoff(result.status, result.headers);
+            break; 
           }
-        } else {
-          // API Backoff logic
-          await handleApiBackoff(result.status, result.headers);
         }
       }
 
