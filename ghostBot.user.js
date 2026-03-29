@@ -269,15 +269,8 @@
     const get = () => {
       if (cached !== null) return cached;
       const detected = detect();
-      // Use detected if available, otherwise fallback to config or 200
-      cached =
-        (botConfig.maxEnergyLimit &&
-          Math.min(
-            botConfig.maxEnergyLimit,
-            detected || botConfig.maxEnergyLimit
-          )) ||
-        detected ||
-        200;
+      // 移除默认的 200 限制，直接使用网页检测到的真实上限（如果未检测到则暂定为200）
+      cached = detected !== null ? detected : 200;
       return cached;
     };
 
@@ -446,20 +439,30 @@
 
     // Launcher polling with timeout/max attempts
     let attempts = 0;
-    const MAX_ATTEMPTS = 60; // 30 seconds
+    const MAX_ATTEMPTS = 60;
     const checkControls = setInterval(() => {
       const controlsLeft = document.getElementById("controls-left");
-      if (controlsLeft) {
+      // 确保网页的核心变量已加载，防止脚本过早抓取到 undefined
+      const isGameReady = typeof usw.maxEnergy !== "undefined" && typeof usw.Colors !== "undefined";
+
+      if (controlsLeft && isGameReady) {
         clearInterval(checkControls);
         createLauncherButton(controlsLeft);
         createPanel(); // Prepare panel but keep hidden
         applyConfigToBot(); // Apply config once bot/ui is ready
       } else if (++attempts > MAX_ATTEMPTS) {
-        clearInterval(checkControls);
-        log(
-          LOG_LEVELS.warn,
-          "Could not find #controls-left after 30s. Launcher not injected."
-        );
+        if (controlsLeft) {
+          clearInterval(checkControls);
+          createLauncherButton(controlsLeft);
+          createPanel();
+          applyConfigToBot();
+        } else {
+          clearInterval(checkControls);
+          log(
+            LOG_LEVELS.warn,
+            "Could not find #controls-left after 60s. Launcher not injected."
+          );
+        }
       }
     }, 500);
   };
@@ -1115,15 +1118,15 @@
               fixCounter += chunk.length;
               if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(fixCounter);
             }
-            
+
             // 分批发送之间添加短暂延迟，避免突发流量被判定为滥用
             if (i + MAX_BATCH_SIZE < pixelsThisRequest.length) {
-               await sleep(500); 
+               await sleep(500);
             }
           } else {
             // API Backoff logic
             await handleApiBackoff(result.status, result.headers);
-            break; 
+            break;
           }
         }
       }
