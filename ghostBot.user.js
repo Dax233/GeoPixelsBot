@@ -27,302 +27,365 @@
     "minimize": {
         "en": "Minimize / Restore",
         "zh": "最小化/还原",
-        "source": "最小化/还原"
+        "source": "最小化/还原",
+        "fr": "Réduire / Rétablir"
     },
     "hide": {
         "en": "Hide panel (continues in background)",
         "zh": "隐藏面板 (后台继续运行)",
-        "source": "隐藏面板 (后台继续运行)"
+        "source": "隐藏面板 (后台继续运行)",
+        "fr": "Masquer le panneau (activité maintenue)"
     },
     "stopped": {
         "en": "Stopped",
         "zh": "已停止",
-        "source": "已停止"
+        "source": "已停止",
+        "fr": "Arrêté"
     },
     "initialStatus": {
         "en": "Status: Stopped",
         "zh": "状态：已停止",
-        "source": " 状态: 已停止"
+        "source": " 状态: 已停止",
+        "fr": "État : arrêté"
     },
     "mode": {
         "en": "Mode:",
         "zh": "运行模式：",
-        "source": "运行模式:"
+        "source": "运行模式:",
+        "fr": "Mode :"
     },
     "build": {
         "en": "🔨 Build Mode",
         "zh": "🔨 建造",
-        "source": "🔨 建造"
+        "source": "🔨 建造",
+        "fr": "🔨 Mode construction"
     },
     "maintain": {
         "en": "🛡️ Maintain Mode",
         "zh": "🛡️ 维护",
-        "source": "🛡️ 维护"
+        "source": "🛡️ 维护",
+        "fr": "🛡️ Mode maintenance"
     },
     "threshold": {
         "en": "Energy Threshold:",
         "zh": "充能阈值：",
-        "source": "充能阈值:"
+        "source": "充能阈值:",
+        "fr": "Seuil d’énergie :"
     },
     "refreshMax": {
         "en": "Refresh Max Energy",
         "zh": "刷新最大能量上限",
-        "source": "刷新最大能量上限"
+        "source": "刷新最大能量上限",
+        "fr": "Actualiser l’énergie maximale"
     },
     "dragThreshold": {
         "en": "Drag to adjust",
         "zh": "拖动调整",
-        "source": "拖动调整"
+        "source": "拖动调整",
+        "fr": "Faire glisser pour ajuster"
     },
     "enterThreshold": {
         "en": "Enter an exact value",
         "zh": "精准输入",
-        "source": "精准输入"
+        "source": "精准输入",
+        "fr": "Saisir une valeur précise"
     },
     "freeHelp": {
         "en": "Include free colors, such as white and black",
         "zh": "是否绘制白色/黑色等常见背景色",
-        "source": "是否绘制白色/黑色等常见背景色"
+        "source": "是否绘制白色/黑色等常见背景色",
+        "fr": "Inclure les couleurs gratuites, comme le blanc et le noir"
     },
     "free": {
         "en": "Place Free Colors",
         "zh": "绘制免费/背景色",
-        "source": "绘制免费/背景色"
+        "source": "绘制免费/背景色",
+        "fr": "Utiliser les couleurs gratuites"
     },
     "transparentHelp": {
         "en": "Try placing transparent pixels",
         "zh": "是否尝试绘制透明像素",
-        "source": "是否尝试绘制透明像素"
+        "source": "是否尝试绘制透明像素",
+        "fr": "Essayer de placer les pixels transparents"
     },
     "transparent": {
         "en": "Place Transparent Pixels",
         "zh": "绘制透明层",
-        "source": "绘制透明层"
+        "source": "绘制透明层",
+        "fr": "Placer les pixels transparents"
     },
     "audioHelp": {
         "en": "Play a sound when the build is complete",
         "zh": "任务完成时播放提示音",
-        "source": "任务完成时播放提示音"
+        "source": "任务完成时播放提示音",
+        "fr": "Émettre un son à la fin de la construction"
     },
     "audio": {
         "en": "Audio Alerts",
         "zh": "完成提示音",
-        "source": "完成提示音"
+        "source": "完成提示音",
+        "fr": "Alertes sonores"
     },
     "progress": {
         "en": "Progress",
         "zh": "进度",
-        "source": "进度"
+        "source": "进度",
+        "fr": "Progression"
     },
     "etaLabel": {
         "en": "Estimated time left",
-        "zh": "预计剩余时间"
+        "zh": "预计剩余时间",
+        "fr": "Temps restant estimé"
     },
     "etaIdle": {
         "en": "Estimated time left: --:--",
         "zh": "预计剩余时间：--:--",
-        "source": "ETA: --:--"
+        "source": "ETA: --:--",
+        "fr": "Temps restant estimé : --:--"
     },
     "etaCalculating": {
         "en": "Estimated time left: calculating…",
         "zh": "预计剩余时间：计算中…",
-        "source": "ETA: 计算中..."
+        "source": "ETA: 计算中...",
+        "fr": "Temps restant estimé : calcul en cours…"
     },
     "etaPending": {
         "en": "Estimated time left: …",
         "zh": "预计剩余时间：…",
-        "source": "ETA: ..."
+        "source": "ETA: ...",
+        "fr": "Temps restant estimé : …"
     },
     "etaOver": {
         "en": "Estimated time left: > 180 d",
         "zh": "预计剩余时间：> 180 天",
-        "source": "ETA: > 180d"
+        "source": "ETA: > 180d",
+        "fr": "Temps restant estimé : > 180 j"
     },
     "pixels": {
         "en": "🖌️ Correct pixels",
         "zh": "🖌️ 像素完成度",
-        "source": "🖌️ 像素完成度"
+        "source": "🖌️ 像素完成度",
+        "fr": "🖌️ Pixels corrects"
     },
     "repairs": {
         "en": "🛡️ Pixels repaired",
         "zh": "🛡️ 已修复总数",
-        "source": "🛡️ 已修复总数"
+        "source": "🛡️ 已修复总数",
+        "fr": "🛡️ Pixels réparés"
     },
     "start": {
         "en": "Start",
         "zh": "启动",
-        "source": "启动"
+        "source": "启动",
+        "fr": "Démarrer"
     },
     "stop": {
         "en": "Stop",
         "zh": "停止",
-        "source": "停止"
+        "source": "停止",
+        "fr": "Arrêter"
     },
     "launcher": {
         "en": "GhostPixel Bot Settings",
         "zh": "GhostPixel Bot 设置",
-        "source": "打开 GhostPixel Bot"
+        "source": "打开 GhostPixel Bot",
+        "fr": "Paramètres de GhostPixel Bot"
     },
     "language": {
         "en": "Language",
-        "zh": "语言"
+        "zh": "语言",
+        "fr": "Langue"
     },
     "missingGhost": {
         "en": "Ghost image not loaded",
         "zh": "Ghost 图未加载",
-        "source": "Ghost 图未加载"
+        "source": "Ghost 图未加载",
+        "fr": "Image fantôme non chargée"
     },
     "waitingData": {
         "en": "Waiting for data…",
         "zh": "等待数据…",
-        "source": "等待数据..."
+        "source": "等待数据...",
+        "fr": "En attente des données…"
     },
     "complete": {
         "en": "Build Complete!",
         "zh": "画作已完成！",
-        "source": "画作已完成！"
+        "source": "画作已完成！",
+        "fr": "Construction terminée !"
     },
     "completeToast": {
         "en": "GhostPixel Bot: Build Complete!",
         "zh": "GhostPixel Bot：建造完成！",
-        "source": "GhostPixel Bot: 建造完成！"
+        "source": "GhostPixel Bot: 建造完成！",
+        "fr": "GhostPixel Bot : construction terminée !"
     },
     "monitoring": {
         "en": "Monitoring… all pixels correct",
         "zh": "监控中… 画面完美",
-        "source": "监控中... 画面完美"
+        "source": "监控中... 画面完美",
+        "fr": "Surveillance… tous les pixels sont corrects"
     },
     "loggedOut": {
         "en": "Logged out",
         "zh": "已登出",
-        "source": "已登出"
+        "source": "已登出",
+        "fr": "Déconnecté"
     },
     "loadConfig": {
         "en": "Failed to load settings",
         "zh": "无法加载设置",
-        "source": t("loadConfig")
+        "source": "Failed to load config",
+        "fr": "Impossible de charger les paramètres"
     },
     "saveConfig": {
         "en": "Could not save settings; changes apply to this session only",
         "zh": "无法保存设置；更改仅在本次会话生效",
-        "source": t("saveConfig")
+        "source": "Failed to save config; continuing without persisting changes",
+        "fr": "Impossible d’enregistrer les paramètres ; les changements restent valables pour cette session"
     },
     "audioFailed": {
         "en": "Could not play the alert sound",
         "zh": "无法播放提示音",
-        "source": t("audioFailed")
+        "source": "Audio play failed",
+        "fr": "Impossible de jouer l’alerte sonore"
     },
     "noControls": {
         "en": "Could not find #controls-left before the timeout. Launcher not added.",
         "zh": "等待超时，未找到 #controls-left，未添加启动按钮。",
-        "source": "Could not find #controls-left after 60s. Launcher not injected."
+        "source": "Could not find #controls-left after 60s. Launcher not injected.",
+        "fr": "Délai dépassé : élément #controls-left introuvable. Bouton non ajouté."
     },
     "noGoogle": {
         "en": "Could not find the Google Sign-In element (\"g_id_onload\").",
         "zh": "找不到 Google 登录元素（\"g_id_onload\"）。",
-        "source": "Could not find the Google Sign-In element (\"g_id_onload\")."
+        "source": "Could not find the Google Sign-In element (\"g_id_onload\").",
+        "fr": "Élément de connexion Google (« g_id_onload ») introuvable."
     },
     "autoLogin": {
         "en": "Attempting automatic sign-in…",
         "zh": "正在尝试自动登录…",
-        "source": "Attempting AutoLogin..."
+        "source": "Attempting AutoLogin...",
+        "fr": "Tentative de connexion automatique…"
     },
     "relogin": {
         "en": "Automatic sign-in failed; trying Google sign-in",
         "zh": "自动登录失败，正在尝试 Google 登录",
-        "source": "AutoLogin failed, attempting relog with google"
+        "source": "AutoLogin failed, attempting relog with google",
+        "fr": "Échec de la connexion automatique ; tentative via Google"
     },
     "googleFailed": {
         "en": "Google sign-in failed",
         "zh": "Google 登录失败",
-        "source": "Google authentication failed"
+        "source": "Google authentication failed",
+        "fr": "Échec de la connexion Google"
     },
     "reload": {
         "en": "Loading ghost image pixels…",
         "zh": "正在加载图像像素…",
-        "source": "Setting/Reloading ghost pixel data..."
+        "source": "Setting/Reloading ghost pixel data...",
+        "fr": "Chargement des pixels de l’image fantôme…"
     },
     "noColors": {
         "en": "The page’s `Colors` variable is unavailable.",
         "zh": "页面的 `Colors` 变量不可用。",
-        "source": "Page's `Colors` variable not available."
+        "source": "Page's `Colors` variable not available.",
+        "fr": "La variable « Colors » de la page est indisponible."
     },
     "noTiles": {
         "en": "The page’s `tileImageCache` Map is unavailable.",
         "zh": "页面的 `tileImageCache` Map 不可用。",
-        "source": "Page's `tileImageCache` Map is not available."
+        "source": "Page's `tileImageCache` Map is not available.",
+        "fr": "La table « tileImageCache » de la page est indisponible."
     },
     "noGhostLog": {
         "en": "Ghost image not loaded.",
         "zh": "未加载图像。",
-        "source": "Ghost image not loaded."
+        "source": "Ghost image not loaded.",
+        "fr": "Image fantôme non chargée."
     },
     "emptyData": {
         "en": "Ghost image data empty; retrying…",
         "zh": "图像数据为空，正在重试…",
-        "source": "Ghost data empty, retrying..."
+        "source": "Ghost data empty, retrying...",
+        "fr": "Données de l’image fantôme vides ; nouvelle tentative…"
     },
     "completeLog": {
         "en": "Build Complete!",
         "zh": "建造完成！",
-        "source": "Build Complete!"
+        "source": "Build Complete!",
+        "fr": "Construction terminée !"
     },
     "stopCommand": {
         "en": "Stop command received.",
         "zh": "已收到停止命令。",
-        "source": "Stopping bot command received."
+        "source": "Stopping bot command received.",
+        "fr": "Commande d’arrêt reçue."
     },
     "charging": {
         "en": "Charging… {spinner} ({current}/{target}) [Threshold: {threshold}]",
-        "zh": "充能中… {spinner} ({current}/{target}) [阈值：{threshold}]"
+        "zh": "充能中… {spinner} ({current}/{target}) [阈值：{threshold}]",
+        "fr": "Recharge en cours… {spinner} ({current}/{target}) [Seuil : {threshold}]"
     },
     "drawing": {
         "en": "Placing {count} pixels (batch {batch})…",
-        "zh": "正在绘制 {count} 个点（批次 {batch}）…"
+        "zh": "正在绘制 {count} 个点（批次 {batch}）…",
+        "fr": "Placement de {count} pixels (lot {batch})…"
     },
     "maxSynced": {
         "en": "Max energy synced: {value}",
-        "zh": "最大能量已同步：{value}"
+        "zh": "最大能量已同步：{value}",
+        "fr": "Énergie maximale actualisée : {value}"
     },
     "filtered": {
         "en": "Filtered ghost pixels. Total: {value}",
-        "zh": "筛选后的像素总数：{value}"
+        "zh": "筛选后的像素总数：{value}",
+        "fr": "Pixels retenus dans l’image fantôme : {value}"
     },
     "placeFailed": {
         "en": "Failed to place pixels: {detail}",
-        "zh": "像素放置失败：{detail}"
+        "zh": "像素放置失败：{detail}",
+        "fr": "Échec du placement des pixels : {detail}"
     },
     "rateLimited": {
         "en": "Rate limited (429). Waiting {value} ms…",
-        "zh": "触发频率限制（429），等待 {value} 毫秒…"
+        "zh": "触发频率限制（429），等待 {value} 毫秒…",
+        "fr": "Limite de requêtes atteinte (429). Attente de {value} ms…"
     },
     "starting": {
         "en": "Starting Ghost Bot in {mode} mode…",
-        "zh": "正在启动 Ghost Bot：{mode}…"
+        "zh": "正在启动 Ghost Bot：{mode}…",
+        "fr": "Démarrage de Ghost Bot : {mode}…"
     },
     "invalidHex": {
         "en": "Invalid hex color: {detail}",
-        "zh": "无效的十六进制颜色：{detail}"
+        "zh": "无效的十六进制颜色：{detail}",
+        "fr": "Couleur hexadécimale incorrecte : {detail}"
     },
     "loaded": {
         "en": "GhostPixel Bot v{version} loaded.",
-        "zh": "GhostPixel Bot v{version} 已加载。"
+        "zh": "GhostPixel Bot v{version} 已加载。",
+        "fr": "GhostPixel Bot v{version} chargé."
     },
     "second": {
         "en": "s",
-        "zh": "秒"
+        "zh": "秒",
+        "fr": "s"
     },
     "minute": {
         "en": "min",
-        "zh": "分"
+        "zh": "分",
+        "fr": "min"
     },
     "hour": {
         "en": "h",
-        "zh": "小时"
+        "zh": "小时",
+        "fr": "h"
     },
     "day": {
         "en": "d",
-        "zh": "天"
+        "zh": "天",
+        "fr": "j"
     }
 };
   const hasLanguage = (value) => ["en", "fr", "zh"].includes(value);
