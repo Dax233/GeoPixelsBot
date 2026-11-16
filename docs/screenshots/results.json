@@ -1,0 +1,42 @@
+{
+  "browser": "157.0.4341.60",
+  "results": [
+    {
+      "name": "before",
+      "externalRequests": 0,
+      "errors": []
+    },
+    {
+      "name": "fr",
+      "viewport": 1280,
+      "overflows": [],
+      "configBefore": null,
+      "externalRequests": 0,
+      "errors": []
+    },
+    {
+      "name": "en",
+      "viewport": 1280,
+      "overflows": [],
+      "configBefore": null,
+      "externalRequests": 0,
+      "errors": []
+    },
+    {
+      "name": "zh",
+      "viewport": 1280,
+      "overflows": [],
+      "configBefore": null,
+      "externalRequests": 0,
+      "errors": []
+    },
+    {
+      "name": "fr-narrow",
+      "viewport": 390,
+      "overflows": [],
+      "configBefore": null,
+      "externalRequests": 0,
+      "errors": []
+    }
+  ]
+}

@@ -3,6 +3,8 @@
 // @namespace    https://github.com/Dax233
 // @version      0.4.3
 // @description  A bot to place pixels from the ghost image on https://geopixels.net
+// @description:fr Place les pixels d’une image fantôme sur GeoPixels.
+// Localisation de l’interface : 16 novembre 2026 ; voir docs/LOCALISATION-FR.md.
 // @author       Dax233 (Original by nymtuta)
 // @match        https://*.geopixels.net/*
 // @updateURL    https://github.com/Dax233/GeoPixelsBot/raw/refs/heads/main/ghostBot.user.js

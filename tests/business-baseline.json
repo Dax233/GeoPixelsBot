@@ -1,0 +1,31 @@
+{
+  "commit": "efda7d87cadbb27954f58041d8bccbdf9fce20a2",
+  "functions": {
+    "DEFAULT_CONFIG": "011777897e30fa1d6bca64e50604498ae106550ea19dd903d79f73dab99dfcc1",
+    "updateConfig": "709fc15c00bac17e73cf13aeee7be4b1ba3c50b9cfe6702366efe22252c54846",
+    "applyConfigToBot": "88d3b092551863c56908b5971a413af3325950456d08cb1e60e41dec506b19b6",
+    "sleep": "8ec3304ad86f6613c23001bd2ddec8076d1e0ee8a061e4ae6bc1d26b0c49fb53",
+    "class:Color": "2b33302c78c0c516afa7e4bc873923da2cd6de3e08230421135096f74ac6d0a7",
+    "pixelToGridCoord": "aedc1c0e3f760950ada63391fc0a877a855d6f080a41ae6cc391f6ffad601fca",
+    "class:ImageData": "0658c1f7d722204db6e93c511a068701479887cd27de7376bfd0aa8383aff826",
+    "FREE_COLORS": "c73e40ea547e5330f61b548afce43eedf8c465efda1a18dcb9eac256d8c127a0",
+    "freeColorSet": "cbaed5eb20ab4fd0a5f93d26621f22b64f564eae2046ccd19c52e0f283a64b25",
+    "withErrorHandling": "779ee1efe2d45a2568e691460ae2b9da0af6fb903265c1f578a1e2449c8c0891",
+    "getTileData": "6f306961526cfd29c3859e9441b6ee19fdb43d328ba72350965ef8efcd1259d5",
+    "needsPlacing": "f2812b05ae3761526e41a9cb2df6549165b96a8eb9f1119365ab1621acdac44e",
+    "evaluateAction": "a38f44893e85e678a94a88c2d1efc9c8ab39d21e8da527db3bf5c7cb90cf4c69",
+    "MaxEnergy": "62af50c13ff0398ffaf81c1bcdad032a6cd3ea9e8ac5d093be6e917d6cb28259",
+    "tryRelog": "bbb340c5e5ee720cc02dc48f3a08ed7ed1f0ef409af03aaf6c9d56cb824f7be5",
+    "getGhostImageData": "68cb8a98fc6aa1fc412fea657d67729d3a5b5e295eefff4f205f34baa8254b0a",
+    "orderGhostPixels": "a323efa44ae5dd7e779db06bd031a3133ac6b85272e196496deeb63eaa592fda",
+    "setGhostPixelData": "b61b9e329ecd8c23d86695da668553c0afd406c78abfbe3b96aef458feb035fb",
+    "getPixelsToPlace": "3fba7bc2fc5fe77c426d928894bf55c9a6693b789789e8542887ffc24a584489",
+    "sendPixels": "88029a9e5219780971d5ec0905ed5f3413af9bbdbc77a366fe9d3c4baf3da3eb",
+    "getCurrentEnergy": "76bbcec6deea9540c15b200f6119037151fa9cb8e09d117a73dfef835d922679",
+    "waitForEnergyAndPixels": "51e2bdd9ef8ca44d47e8166eadcd00a311130ae4f185a58e7b7c8b6e9c044dcd",
+    "handleApiBackoff": "9a01738a6087a29923635812e4c5efb388f10db94c6aee9292d3aacbfa727222",
+    "startGhostBot": "f8961418f06459ffd00b1a8d1c03dc0c685309104bcd3f337a35bb09968ab943",
+    "property:stop": "d78d277d3d760b703811852af6e77e4f247a7af115a6ad2b130f6ab6fd23bd16",
+    "property:reload": "33e4741f767452c3666e414564e27860637bfac19afa30bb997b1fe407b863d4"
+  }
+}
