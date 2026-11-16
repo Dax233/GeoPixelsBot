@@ -49,7 +49,7 @@ npm run check
 npm run test:browser
 ```
 
-`npm run check` exécute la vérification syntaxique puis 13 tests Node/jsdom. Les tests instrumentent uniquement leur copie en mémoire pour accéder aux fonctions d’affichage. Aucun point d’entrée de test n’est ajouté au script distribué. Un manifeste SHA-256 vérifie 26 déclarations protégées et compare ses valeurs à l’amont dans Git.
+`npm run check` exécute la vérification syntaxique puis 13 tests Node/jsdom. Les tests instrumentent uniquement leur copie en mémoire pour accéder aux fonctions d’affichage. Aucun point d’entrée de test n’est ajouté au script distribué. Un manifeste SHA-256, avec fins de ligne normalisées en LF pour Windows, vérifie 26 déclarations protégées et compare ses valeurs à l’amont dans Git.
 
 La recette navigateur utilise Edge installé en mode headless, ou Chromium installé pour Playwright. Elle sert une page factice sur `127.0.0.1`, bloque les requêtes externes et remplace `fetch`, XMLHttpRequest, WebSocket et `synchronize` par des fonctions qui échouent. Aucun clic sur Démarrer. Les données de progression et les états sont injectés dans l’affichage seulement. Les captures ne représentent pas une session réelle de GeoPixels.
 

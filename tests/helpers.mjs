@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { JSDOM } from 'jsdom';
-export const source = readFileSync(new URL('../ghostBot.user.js', import.meta.url), 'utf8');
+export const source = readFileSync(new URL('../ghostBot.user.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 export function setup({ locale = 'fr-FR', savedLanguage, config, storageBlocked = false, script = source, version = '0.4.3' } = {}) {
   const dom = new JSDOM('<!doctype html><html><head></head><body><div id="g_id_onload"></div><div id="controls-left"></div></body></html>', {
     url: 'http://127.0.0.1:4173/', runScripts: 'outside-only', pretendToBeVisual: true,
