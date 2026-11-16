@@ -20,6 +20,400 @@
   const gIdOnloadElement = document.getElementById("g_id_onload");
   let GOOGLE_CLIENT_ID;
 
+  // Localization is presentation-only and has its own storage key.
+  const DEFAULT_LANGUAGE = "auto";
+  const LANGUAGE_KEY = "ghostBotLanguage_v1";
+  const MESSAGES = {
+    "minimize": {
+        "en": "Minimize / Restore",
+        "zh": "最小化/还原",
+        "source": "最小化/还原"
+    },
+    "hide": {
+        "en": "Hide panel (continues in background)",
+        "zh": "隐藏面板 (后台继续运行)",
+        "source": "隐藏面板 (后台继续运行)"
+    },
+    "stopped": {
+        "en": "Stopped",
+        "zh": "已停止",
+        "source": "已停止"
+    },
+    "initialStatus": {
+        "en": "Status: Stopped",
+        "zh": "状态：已停止",
+        "source": " 状态: 已停止"
+    },
+    "mode": {
+        "en": "Mode:",
+        "zh": "运行模式：",
+        "source": "运行模式:"
+    },
+    "build": {
+        "en": "🔨 Build Mode",
+        "zh": "🔨 建造",
+        "source": "🔨 建造"
+    },
+    "maintain": {
+        "en": "🛡️ Maintain Mode",
+        "zh": "🛡️ 维护",
+        "source": "🛡️ 维护"
+    },
+    "threshold": {
+        "en": "Energy Threshold:",
+        "zh": "充能阈值：",
+        "source": "充能阈值:"
+    },
+    "refreshMax": {
+        "en": "Refresh Max Energy",
+        "zh": "刷新最大能量上限",
+        "source": "刷新最大能量上限"
+    },
+    "dragThreshold": {
+        "en": "Drag to adjust",
+        "zh": "拖动调整",
+        "source": "拖动调整"
+    },
+    "enterThreshold": {
+        "en": "Enter an exact value",
+        "zh": "精准输入",
+        "source": "精准输入"
+    },
+    "freeHelp": {
+        "en": "Include free colors, such as white and black",
+        "zh": "是否绘制白色/黑色等常见背景色",
+        "source": "是否绘制白色/黑色等常见背景色"
+    },
+    "free": {
+        "en": "Place Free Colors",
+        "zh": "绘制免费/背景色",
+        "source": "绘制免费/背景色"
+    },
+    "transparentHelp": {
+        "en": "Try placing transparent pixels",
+        "zh": "是否尝试绘制透明像素",
+        "source": "是否尝试绘制透明像素"
+    },
+    "transparent": {
+        "en": "Place Transparent Pixels",
+        "zh": "绘制透明层",
+        "source": "绘制透明层"
+    },
+    "audioHelp": {
+        "en": "Play a sound when the build is complete",
+        "zh": "任务完成时播放提示音",
+        "source": "任务完成时播放提示音"
+    },
+    "audio": {
+        "en": "Audio Alerts",
+        "zh": "完成提示音",
+        "source": "完成提示音"
+    },
+    "progress": {
+        "en": "Progress",
+        "zh": "进度",
+        "source": "进度"
+    },
+    "etaLabel": {
+        "en": "Estimated time left",
+        "zh": "预计剩余时间"
+    },
+    "etaIdle": {
+        "en": "Estimated time left: --:--",
+        "zh": "预计剩余时间：--:--",
+        "source": "ETA: --:--"
+    },
+    "etaCalculating": {
+        "en": "Estimated time left: calculating…",
+        "zh": "预计剩余时间：计算中…",
+        "source": "ETA: 计算中..."
+    },
+    "etaPending": {
+        "en": "Estimated time left: …",
+        "zh": "预计剩余时间：…",
+        "source": "ETA: ..."
+    },
+    "etaOver": {
+        "en": "Estimated time left: > 180 d",
+        "zh": "预计剩余时间：> 180 天",
+        "source": "ETA: > 180d"
+    },
+    "pixels": {
+        "en": "🖌️ Correct pixels",
+        "zh": "🖌️ 像素完成度",
+        "source": "🖌️ 像素完成度"
+    },
+    "repairs": {
+        "en": "🛡️ Pixels repaired",
+        "zh": "🛡️ 已修复总数",
+        "source": "🛡️ 已修复总数"
+    },
+    "start": {
+        "en": "Start",
+        "zh": "启动",
+        "source": "启动"
+    },
+    "stop": {
+        "en": "Stop",
+        "zh": "停止",
+        "source": "停止"
+    },
+    "launcher": {
+        "en": "GhostPixel Bot Settings",
+        "zh": "GhostPixel Bot 设置",
+        "source": "打开 GhostPixel Bot"
+    },
+    "language": {
+        "en": "Language",
+        "zh": "语言"
+    },
+    "missingGhost": {
+        "en": "Ghost image not loaded",
+        "zh": "Ghost 图未加载",
+        "source": "Ghost 图未加载"
+    },
+    "waitingData": {
+        "en": "Waiting for data…",
+        "zh": "等待数据…",
+        "source": "等待数据..."
+    },
+    "complete": {
+        "en": "Build Complete!",
+        "zh": "画作已完成！",
+        "source": "画作已完成！"
+    },
+    "completeToast": {
+        "en": "GhostPixel Bot: Build Complete!",
+        "zh": "GhostPixel Bot：建造完成！",
+        "source": "GhostPixel Bot: 建造完成！"
+    },
+    "monitoring": {
+        "en": "Monitoring… all pixels correct",
+        "zh": "监控中… 画面完美",
+        "source": "监控中... 画面完美"
+    },
+    "loggedOut": {
+        "en": "Logged out",
+        "zh": "已登出",
+        "source": "已登出"
+    },
+    "loadConfig": {
+        "en": "Failed to load settings",
+        "zh": "无法加载设置",
+        "source": t("loadConfig")
+    },
+    "saveConfig": {
+        "en": "Could not save settings; changes apply to this session only",
+        "zh": "无法保存设置；更改仅在本次会话生效",
+        "source": t("saveConfig")
+    },
+    "audioFailed": {
+        "en": "Could not play the alert sound",
+        "zh": "无法播放提示音",
+        "source": t("audioFailed")
+    },
+    "noControls": {
+        "en": "Could not find #controls-left before the timeout. Launcher not added.",
+        "zh": "等待超时，未找到 #controls-left，未添加启动按钮。",
+        "source": "Could not find #controls-left after 60s. Launcher not injected."
+    },
+    "noGoogle": {
+        "en": "Could not find the Google Sign-In element (\"g_id_onload\").",
+        "zh": "找不到 Google 登录元素（\"g_id_onload\"）。",
+        "source": "Could not find the Google Sign-In element (\"g_id_onload\")."
+    },
+    "autoLogin": {
+        "en": "Attempting automatic sign-in…",
+        "zh": "正在尝试自动登录…",
+        "source": "Attempting AutoLogin..."
+    },
+    "relogin": {
+        "en": "Automatic sign-in failed; trying Google sign-in",
+        "zh": "自动登录失败，正在尝试 Google 登录",
+        "source": "AutoLogin failed, attempting relog with google"
+    },
+    "googleFailed": {
+        "en": "Google sign-in failed",
+        "zh": "Google 登录失败",
+        "source": "Google authentication failed"
+    },
+    "reload": {
+        "en": "Loading ghost image pixels…",
+        "zh": "正在加载图像像素…",
+        "source": "Setting/Reloading ghost pixel data..."
+    },
+    "noColors": {
+        "en": "The page’s `Colors` variable is unavailable.",
+        "zh": "页面的 `Colors` 变量不可用。",
+        "source": "Page's `Colors` variable not available."
+    },
+    "noTiles": {
+        "en": "The page’s `tileImageCache` Map is unavailable.",
+        "zh": "页面的 `tileImageCache` Map 不可用。",
+        "source": "Page's `tileImageCache` Map is not available."
+    },
+    "noGhostLog": {
+        "en": "Ghost image not loaded.",
+        "zh": "未加载图像。",
+        "source": "Ghost image not loaded."
+    },
+    "emptyData": {
+        "en": "Ghost image data empty; retrying…",
+        "zh": "图像数据为空，正在重试…",
+        "source": "Ghost data empty, retrying..."
+    },
+    "completeLog": {
+        "en": "Build Complete!",
+        "zh": "建造完成！",
+        "source": "Build Complete!"
+    },
+    "stopCommand": {
+        "en": "Stop command received.",
+        "zh": "已收到停止命令。",
+        "source": "Stopping bot command received."
+    },
+    "charging": {
+        "en": "Charging… {spinner} ({current}/{target}) [Threshold: {threshold}]",
+        "zh": "充能中… {spinner} ({current}/{target}) [阈值：{threshold}]"
+    },
+    "drawing": {
+        "en": "Placing {count} pixels (batch {batch})…",
+        "zh": "正在绘制 {count} 个点（批次 {batch}）…"
+    },
+    "maxSynced": {
+        "en": "Max energy synced: {value}",
+        "zh": "最大能量已同步：{value}"
+    },
+    "filtered": {
+        "en": "Filtered ghost pixels. Total: {value}",
+        "zh": "筛选后的像素总数：{value}"
+    },
+    "placeFailed": {
+        "en": "Failed to place pixels: {detail}",
+        "zh": "像素放置失败：{detail}"
+    },
+    "rateLimited": {
+        "en": "Rate limited (429). Waiting {value} ms…",
+        "zh": "触发频率限制（429），等待 {value} 毫秒…"
+    },
+    "starting": {
+        "en": "Starting Ghost Bot in {mode} mode…",
+        "zh": "正在启动 Ghost Bot：{mode}…"
+    },
+    "invalidHex": {
+        "en": "Invalid hex color: {detail}",
+        "zh": "无效的十六进制颜色：{detail}"
+    },
+    "loaded": {
+        "en": "GhostPixel Bot v{version} loaded.",
+        "zh": "GhostPixel Bot v{version} 已加载。"
+    },
+    "second": {
+        "en": "s",
+        "zh": "秒"
+    },
+    "minute": {
+        "en": "min",
+        "zh": "分"
+    },
+    "hour": {
+        "en": "h",
+        "zh": "小时"
+    },
+    "day": {
+        "en": "d",
+        "zh": "天"
+    }
+};
+  const hasLanguage = (value) => ["en", "fr", "zh"].includes(value);
+  const detectLanguage = () => {
+    const code = (navigator.language || "en").split("-")[0].toLowerCase();
+    return hasLanguage(code) && MESSAGES.language[code] ? code : "en";
+  };
+  let language = DEFAULT_LANGUAGE === "auto" ? detectLanguage() : DEFAULT_LANGUAGE;
+  try {
+    const savedLanguage = localStorage.getItem(LANGUAGE_KEY);
+    if (hasLanguage(savedLanguage)) language = savedLanguage;
+  } catch (_) { /* Storage may be blocked; the UI still works. */ }
+  const t = (key, params = {}) => {
+    const entry = Object.prototype.hasOwnProperty.call(MESSAGES, key) ? MESSAGES[key] : null;
+    const text = entry?.[language] ?? entry?.en ?? key;
+    return text.replace(/\{(\w+)\}/g, (match, name) =>
+      Object.prototype.hasOwnProperty.call(params, name) ? String(params[name]) : match);
+  };
+  const formatNumber = (value, options = {}) => new Intl.NumberFormat(
+    { fr: "fr-FR", en: "en-US", zh: "zh-CN" }[language], options
+  ).format(value);
+  const sourceKeys = new Map(Object.entries(MESSAGES)
+    .filter(([, entry]) => entry.source !== undefined)
+    .map(([key, entry]) => [entry.source, key]));
+  const messagePatterns = [
+    [/^充能中\.\.\. (.) \(([^/]+)\/([^)]*)\) \[Req: ([^\]]+)\]$/, "charging", ["spinner", "current", "target", "threshold"]],
+    [/^正在绘制 (\d+) 个点 \(批次 (\d+)\)\.\.\.$/, "drawing", ["count", "batch"]],
+    [/^Max energy synced: (.+)$/, "maxSynced", ["value"]],
+    [/^Filtered ghost pixels\. Total: (.+)$/, "filtered", ["value"]],
+    [/^Failed to place pixels: ([\s\S]*)$/, "placeFailed", ["detail"]],
+    [/^Rate limited \(429\)\. Waiting (.+)ms\.\.\.$/, "rateLimited", ["value"]],
+    [/^Starting Ghost Bot in \[(BUILD|MAINTAIN)\] mode\.\.\.$/, "starting", ["mode"]],
+    [/^Invalid hex color: ([\s\S]*)$/, "invalidHex", ["detail"]],
+    [/^GhostPixel Bot v(.+) Loaded\.$/, "loaded", ["version"]],
+  ];
+  const translateMessage = (message) => {
+    if (typeof message !== "string") return message;
+    if (sourceKeys.has(message)) return t(sourceKeys.get(message));
+    for (const [pattern, key, names] of messagePatterns) {
+      const match = message.match(pattern);
+      if (!match) continue;
+      const params = Object.fromEntries(names.map((name, index) => [name, match[index + 1]]));
+      for (const name of ["current", "target", "threshold", "count", "batch", "value"]) {
+        if (params[name] !== undefined && Number.isFinite(Number(params[name])))
+          params[name] = formatNumber(Number(params[name]));
+      }
+      if (params.mode) params.mode = t(params.mode === "BUILD" ? "build" : "maintain").replace(/^[^\p{L}]+/u, "");
+      return t(key, params);
+    }
+    // Unknown site/server errors remain available verbatim for diagnosis.
+    return message;
+  };
+  let lastStatus = [" 状态: 已停止", "#ff595e", "🔴"];
+  let lastProgress = null;
+  let lastFixCount = 0;
+  const renderLanguage = () => {
+    const panel = document.getElementById("ghostBot-gui-panel");
+    if (!panel) return;
+    panel.lang = language;
+    panel.querySelectorAll("[data-gb-i18n]").forEach((el) => {
+      el.textContent = t(el.dataset.gbI18n);
+    });
+    panel.querySelectorAll("[data-gb-title]").forEach((el) => {
+      const text = t(el.dataset.gbTitle);
+      el.title = text;
+      el.setAttribute("aria-label", text);
+    });
+    const launcher = document.getElementById("ghostBot-launcher");
+    if (launcher) {
+      launcher.title = t("launcher");
+      launcher.setAttribute("aria-label", t("launcher"));
+    }
+    panel.querySelector("#bot-language-select").value = language;
+    updateGuiStatus(...lastStatus);
+    if (lastProgress && usw.ghostBotGui) usw.ghostBotGui.updateProgress(lastProgress);
+    else {
+      panel.querySelector("#stats-progress-text").innerText = formatNumber(0, { style: "percent" });
+      panel.querySelector("#stats-eta").innerText = t("etaIdle");
+    }
+    if (usw.ghostBotGui) usw.ghostBotGui.updateFixCount(lastFixCount);
+    document.querySelectorAll(".gb-notification[data-gb-message]").forEach((el) => {
+      el.innerText = translateMessage(el.dataset.gbMessage);
+    });
+  };
+  const setLanguage = (value) => {
+    if (!hasLanguage(value)) value = "en";
+    language = value;
+    try { localStorage.setItem(LANGUAGE_KEY, value); } catch (_) { /* Session-only choice. */ }
+    renderLanguage();
+  };
+
   // 运行时状态
   let isRunning = false;
   let fixCounter = 0;
@@ -41,7 +435,7 @@
     const saved = localStorage.getItem("ghostBotConfig_v2");
     if (saved) botConfig = { ...DEFAULT_CONFIG, ...JSON.parse(saved) };
   } catch (e) {
-    console.error("Failed to load config", e);
+    console.error(t("loadConfig"), e);
   }
 
   // Wrap localStorage write in try/catch
@@ -50,7 +444,7 @@
       localStorage.setItem("ghostBotConfig_v2", JSON.stringify(botConfig));
     } catch (e) {
       console.warn(
-        "Failed to save config; continuing without persisting changes",
+        t("saveConfig"),
         e
       );
     }
@@ -130,7 +524,7 @@
       `%c[ghostBot] %c[${lvl.label}]`,
       "color: rebeccapurple;",
       `color:${lvl.color};`,
-      ...args
+      ...args.map(translateMessage)
     );
   }
 
@@ -240,14 +634,15 @@
       osc.start();
       osc.stop(ctx.currentTime + 0.8);
     } catch (e) {
-      console.error("Audio play failed", e);
+      console.error(t("audioFailed"), e);
     }
   };
 
   const showCompletionNotification = (message) => {
     const notification = document.createElement("div");
     notification.className = "gb-notification";
-    notification.innerText = message;
+    notification.dataset.gbMessage = message;
+    notification.innerText = translateMessage(message);
     document.body.appendChild(notification);
     setTimeout(() => {
       notification.style.transition = "opacity 0.5s";
@@ -347,6 +742,11 @@
     #stats-eta { font-size: 11px; color: #888; text-align: right; margin-top: -4px; margin-bottom: 6px; }
     #maintain-stats { display:none; border-top:1px solid #333; padding-top:5px; margin-top:5px; }
 
+    .gb-label { min-width: 0; overflow-wrap: anywhere; }
+    .gb-setting-row { gap: 8px; }
+    .gb-stat-item { gap: 6px; flex-wrap: wrap; }
+    .gb-stat-val { overflow-wrap: anywhere; }
+    #gb-status-text { min-width: 0; overflow-wrap: anywhere; }
     .gb-actions { display:flex; gap:8px; }
     .gb-btn { flex:1; border:none; padding:8px; border-radius:4px; cursor:pointer; font-weight:bold; transition:all 0.2s; }
     .gb-btn-start { background:#1982c4; color:white; }
@@ -362,71 +762,79 @@
     <div class="gb-header">
       <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4.2</span></h3>
       <div class="gb-window-ctrls">
-        <span class="gb-min-btn" title="最小化/还原">_</span>
-        <span class="gb-close" title="隐藏面板 (后台继续运行)">✕</span>
+        <span class="gb-min-btn" data-gb-title="minimize" title="${t("minimize")}" aria-label="${t("minimize")}">_</span>
+        <span class="gb-close" data-gb-title="hide" title="${t("hide")}" aria-label="${t("hide")}">✕</span>
       </div>
     </div>
     <div class="gb-content">
         <div id="ghost-status-line">
           <span id="gb-status-icon">🔴</span>
-          <span id="gb-status-text"> 状态: 已停止</span>
+          <span id="gb-status-text" data-gb-i18n="initialStatus">${t("initialStatus")}</span>
         </div>
         <div class="gb-controls">
           <div class="gb-ctrl-row">
-            <label class="gb-label">运行模式:</label>
+            <label for="bot-language-select" class="gb-label" data-gb-i18n="language">${t("language")}</label>
+            <select id="bot-language-select" class="gb-input">
+              <option value="fr" lang="fr">Français</option>
+              <option value="en" lang="en">English</option>
+              <option value="zh" lang="zh">中文</option>
+            </select>
+          </div>
+          <div class="gb-ctrl-row">
+            <label for="bot-mode-select" class="gb-label" data-gb-i18n="mode">${t("mode")}</label>
             <select id="bot-mode-select" class="gb-input">
-              <option value="build">🔨 建造</option>
-              <option value="maintain">🛡️ 维护</option>
+              <option value="build" data-gb-i18n="build">${t("build")}</option>
+              <option value="maintain" data-gb-i18n="maintain">${t("maintain")}</option>
             </select>
           </div>
           <div class="gb-ctrl-row">
             <div class="gb-label-row">
-                 <label class="gb-label">充能阈值:</label>
-                 <span id="btn-refresh-max" class="gb-refresh-btn" title="刷新最大能量上限">🔄</span>
+                 <label for="energy-threshold-input" class="gb-label" data-gb-i18n="threshold">${t("threshold")}</label>
+                 <span id="btn-refresh-max" class="gb-refresh-btn" data-gb-title="refreshMax" title="${t("refreshMax")}" aria-label="${t("refreshMax")}">🔄</span>
             </div>
             <div class="gb-input-group">
-                <input id="energy-threshold-slider" type="range" min="1" max="200" class="gb-slider" title="拖动调整">
-                <input id="energy-threshold-input" type="number" class="gb-input gb-num-small" min="1" max="200" title="精准输入">
+                <input id="energy-threshold-slider" type="range" min="1" max="200" class="gb-slider" data-gb-title="dragThreshold" title="${t("dragThreshold")}" aria-label="${t("dragThreshold")}">
+                <input id="energy-threshold-input" type="number" class="gb-input gb-num-small" min="1" max="200" data-gb-title="enterThreshold" title="${t("enterThreshold")}" aria-label="${t("enterThreshold")}">
             </div>
           </div>
         </div>
         <div class="gb-settings">
              <div class="gb-setting-row">
-                <label class="gb-label" for="chk-free-color" title="是否绘制白色/黑色等常见背景色">绘制免费/背景色</label>
+                <label class="gb-label" for="chk-free-color" data-gb-title="freeHelp" title="${t("freeHelp")}" aria-label="${t("freeHelp")}" data-gb-i18n="free">${t("free")}</label>
                 <input type="checkbox" id="chk-free-color" class="gb-checkbox">
             </div>
             <div class="gb-setting-row">
-                <label class="gb-label" for="chk-transparent" title="是否尝试绘制透明像素">绘制透明层</label>
+                <label class="gb-label" for="chk-transparent" data-gb-title="transparentHelp" title="${t("transparentHelp")}" aria-label="${t("transparentHelp")}" data-gb-i18n="transparent">${t("transparent")}</label>
                 <input type="checkbox" id="chk-transparent" class="gb-checkbox">
             </div>
             <div class="gb-setting-row">
-                <label class="gb-label" for="chk-audio" title="任务完成时播放提示音">完成提示音</label>
+                <label class="gb-label" for="chk-audio" data-gb-title="audioHelp" title="${t("audioHelp")}" aria-label="${t("audioHelp")}" data-gb-i18n="audio">${t("audio")}</label>
                 <input type="checkbox" id="chk-audio" class="gb-checkbox">
             </div>
         </div>
         <div class="gb-stats">
           <div class="gb-row-between gb-progress-meta">
-            <span style="color:#bbb">进度</span>
+            <span style="color:#bbb" data-gb-i18n="progress">${t("progress")}</span>
             <span id="stats-progress-text" style="color:#1982c4; font-weight:bold">0%</span>
           </div>
           <div class="gb-progress-track">
             <div id="stats-progress-bar"></div>
           </div>
-          <div id="stats-eta">ETA: --:--</div>
+          <div id="stats-eta" data-gb-i18n="etaIdle">${t("etaIdle")}</div>
           <div class="gb-row-between gb-stat-item">
-            <span style="color:#bbb">🖌️ 像素完成度</span>
+            <span style="color:#bbb" data-gb-i18n="pixels">${t("pixels")}</span>
             <span id="stats-pixel-count" class="gb-stat-val">- / -</span>
           </div>
           <div id="maintain-stats">
             <div class="gb-row-between gb-stat-item">
-              <span style="color:#8ac926">🛡️ 已修复总数</span>
+              <span style="color:#8ac926" data-gb-i18n="repairs">${t("repairs")}</span>
               <span id="fix-count-display" class="gb-stat-val" style="color:#8ac926; font-weight:bold">0</span>
             </div>
           </div>
         </div>
         <div class="gb-actions">
-          <button id="btn-start" class="gb-btn gb-btn-start">启动</button>
-          <button id="btn-stop" class="gb-btn gb-btn-stop" disabled>停止</button>
+          <button id="btn-start" class="gb-btn gb-btn-start" data-gb-i18n="start">${t("start")}</button>
+          <button id="btn-stop" class="gb-btn gb-btn-stop" disabled data-gb-i18n="stop">${t("stop")}</button>
         </div>
     </div>
   `;
@@ -471,7 +879,8 @@
     const btn = document.createElement("div");
     btn.id = "ghostBot-launcher";
     btn.innerHTML = "👻";
-    btn.title = "打开 GhostPixel Bot";
+    btn.title = t("launcher");
+    btn.setAttribute("aria-label", t("launcher"));
     btn.onclick = () => {
       const panel = document.getElementById("ghostBot-gui-panel");
       if (panel) {
@@ -567,6 +976,7 @@
 
     // Use updateConfig & applyConfigToBot
     panel.addEventListener("change", (e) => {
+      if (e.target.id === "bot-language-select") setLanguage(e.target.value);
       if (e.target.id === "bot-mode-select") {
         updateConfig("mode", e.target.value);
         if (statsDiv)
@@ -620,32 +1030,27 @@
   // ETA calculation helper moved inside GUI logic
   const computeEta = (sessionStartTime, sessionPixelsPlaced, remaining) => {
     if (!isRunning || sessionStartTime <= 0 || remaining <= 0)
-      return "ETA: --:--";
+      return t("etaIdle");
     const elapsedSec = (Date.now() - sessionStartTime) / 1000;
-    if (sessionPixelsPlaced <= 2 || elapsedSec <= 5) return "ETA: 计算中...";
+    if (sessionPixelsPlaced <= 2 || elapsedSec <= 5) return t("etaCalculating");
     const pixelsPerSec = sessionPixelsPlaced / elapsedSec;
-    if (pixelsPerSec <= 0) return "ETA: ...";
+    if (pixelsPerSec <= 0) return t("etaPending");
     const remainingSec = remaining / pixelsPerSec;
-    if (remainingSec < 60) return `ETA: ${Math.floor(remainingSec)}s`;
+    if (remainingSec < 60) return `${t("etaLabel")}: ${formatNumber(Math.floor(remainingSec))} ${t("second")}`;
     if (remainingSec < 3600)
-      return `ETA: ${Math.floor(remainingSec / 60)}m ${Math.floor(
-        remainingSec % 60
-      )}s`;
+      return `${t("etaLabel")}: ${formatNumber(Math.floor(remainingSec / 60))} ${t("minute")} ${formatNumber(Math.floor(remainingSec % 60))} ${t("second")}`;
     if (remainingSec < 86400)
-      return `ETA: ${Math.floor(remainingSec / 3600)}h ${Math.floor(
-        (remainingSec % 3600) / 60
-      )}m`;
+      return `${t("etaLabel")}: ${formatNumber(Math.floor(remainingSec / 3600))} ${t("hour")} ${formatNumber(Math.floor((remainingSec % 3600) / 60))} ${t("minute")}`;
     if (remainingSec < 15552000)
-      return `ETA: ${Math.floor(remainingSec / 86400)}d ${Math.floor(
-        (remainingSec % 86400) / 3600
-      )}h`;
-    return `ETA: > 180d`;
+      return `${t("etaLabel")}: ${formatNumber(Math.floor(remainingSec / 86400))} ${t("day")} ${formatNumber(Math.floor((remainingSec % 86400) / 3600))} ${t("hour")}`;
+    return t("etaOver");
   };
 
   const createPanel = () => {
     const panel = document.createElement("div");
     panel.id = "ghostBot-gui-panel";
     panel.innerHTML = GUI_HTML;
+    panel.lang = language;
     document.body.appendChild(panel);
 
     wirePanelDragging(panel);
@@ -692,19 +1097,21 @@
       setRunning: updateGuiState, // Renamed to reflect visual-only nature
       refreshMax: updateMaxEnergyLimit,
       updateFixCount: (count) => {
-        if (fixCountDisplay) fixCountDisplay.innerText = count;
+        lastFixCount = count;
+        if (fixCountDisplay) fixCountDisplay.innerText = formatNumber(count);
       },
 
       // UpdateProgress now takes an object payload and handles ETA internally
       updateProgress: ({ total, remaining, sessionStart, placed }) => {
+        lastProgress = { total, remaining, sessionStart, placed };
         if (!statsPixelCount) return;
         if (total <= 0) return;
 
         const placedCount = total - remaining;
         const pct =
           total > 0 ? ((placedCount / total) * 100).toFixed(1) : "0.0";
-        statsPixelCount.innerText = `${placedCount} / ${total}`;
-        statsProgressText.innerText = `${pct}%`;
+        statsPixelCount.innerText = `${formatNumber(placedCount)} / ${formatNumber(total)}`;
+        statsProgressText.innerText = formatNumber(Number(pct) / 100, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
         statsProgressBar.style.width = `${pct}%`;
 
         const isComplete = pct === "100.0";
@@ -720,14 +1127,16 @@
 
     // Initial sync
     updateMaxEnergyLimit();
+    renderLanguage();
   };
 
   const updateGuiStatus = (status, color = "white", icon = "ℹ️") => {
+    lastStatus = [status, color, icon];
     const iconEl = document.getElementById("gb-status-icon");
     const textEl = document.getElementById("gb-status-text");
     if (iconEl) iconEl.innerText = icon;
     if (textEl) {
-      textEl.innerText = status;
+      textEl.innerText = translateMessage(status);
       textEl.style.color = color;
     }
   };
