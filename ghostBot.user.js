@@ -11,10 +11,12 @@
 // @icon         https://raw.githubusercontent.com/Dax233/GeoPixelsBot/refs/heads/main/img/icon.png
 // @license      GPL-3.0
 // @grant        unsafeWindow
+// @grant        GM_info
 // ==/UserScript==
 
 (function () {
   const usw = unsafeWindow;
+  const SCRIPT_VERSION = typeof GM_info !== "undefined" ? String(GM_info?.script?.version ?? "?") : "?";
   let ghostPixelData;
   let ignoredColors = new Set();
   const gIdOnloadElement = document.getElementById("g_id_onload");
@@ -823,7 +825,7 @@
 
   const GUI_HTML = `
     <div class="gb-header">
-      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver">v0.4.2</span></h3>
+      <h3 class="gb-title">👻 GhostPixel Bot <span class="gb-ver" id="gb-version"></span></h3>
       <div class="gb-window-ctrls">
         <span class="gb-min-btn" data-gb-title="minimize" title="${t("minimize")}" aria-label="${t("minimize")}">_</span>
         <span class="gb-close" data-gb-title="hide" title="${t("hide")}" aria-label="${t("hide")}">✕</span>
@@ -1113,6 +1115,7 @@
     const panel = document.createElement("div");
     panel.id = "ghostBot-gui-panel";
     panel.innerHTML = GUI_HTML;
+    panel.querySelector("#gb-version").textContent = `v${SCRIPT_VERSION}`;
     panel.lang = language;
     document.body.appendChild(panel);
 
@@ -1642,5 +1645,5 @@
     document.addEventListener("DOMContentLoaded", initLauncher);
   else initLauncher();
 
-  log(LOG_LEVELS.info, "GhostPixel Bot v0.4.2 Loaded.");
+  log(LOG_LEVELS.info, t("loaded", { version: SCRIPT_VERSION }));
 })();
