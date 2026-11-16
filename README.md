@@ -83,3 +83,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ---
 *Original work by nymtuta. Enhanced with ❤️ by Dax233.*
+
+## French localization (local contribution)
+
+See [French installation, validation and rollback guide](docs/LOCALISATION-FR.md) and [proposed pull request](docs/PROPOSITION-PR.md). The language selector supports French, English and Chinese; no placement behavior is changed.

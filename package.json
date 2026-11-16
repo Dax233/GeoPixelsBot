@@ -1,0 +1,16 @@
+{
+  "name": "ghostpixelbot-localization-tests",
+  "private": true,
+  "license": "GPL-3.0",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "check": "node --check ghostBot.user.js && npm test",
+    "test:browser": "node scripts/visual-check.mjs",
+    "build:personal": "node scripts/build-personal.mjs"
+  },
+  "devDependencies": {
+    "acorn": "^8.19.0",
+    "jsdom": "^31.0.1",
+    "playwright": "^1.65.1"
+  }
+}
